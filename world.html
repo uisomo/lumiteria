@@ -102,6 +102,11 @@
   .gres.r-SSR { border-color:#ffd34d; box-shadow:0 0 40px rgba(255,210,60,.95); background:linear-gradient(135deg,#3a1030,#1c1850,#103a30); }
   .rar { display:inline-block; font-weight:900; padding:2px 12px; border-radius:10px; background:#777; color:#fff; }
   .rar.r-R { background:#2f7cf0; } .rar.r-SR { background:#8a4cf0; } .rar.r-SSR { background:linear-gradient(90deg,#ff4d6d,#ffb02e,#46e06a,#4aa3ff); }
+  .rar.r-N { background:#6b6b7b; }
+  .rar.r-UR { background:linear-gradient(90deg,#ffd34d,#ff8a3d,#ff4d8a); color:#2a1400; }
+  .gres.r-N { border-color:#9a9ab0; }
+  .gres.r-UR { border-color:#ff8a3d; box-shadow:0 0 40px rgba(255,140,60,.95); background:linear-gradient(135deg,#3a1a10,#2a1040); }
+  .gres .treas { font-size:14px; color:#ffd34d; font-weight:bold; }
   .rar.sm { font-size:10px; padding:0 5px; margin:0 6px 0 1px; }
   .lv { color:#ffd34d; letter-spacing:2px; }
   #hint { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); background:var(--panel); padding:6px 14px; border-radius:20px; font-size:14px; white-space:nowrap; max-width:calc(100vw - 24px); overflow:hidden; text-overflow:ellipsis; }
@@ -140,6 +145,8 @@
     <button id="bCraft">🔨 クラフト<kbd>5</kbd></button>
     <button id="bBuild">🏠 たてる<kbd>6</kbd></button>
     <button id="bFriend">🤝 ともだち<kbd>9</kbd></button>
+    <button id="bShop">🛒 おみせ<kbd>0</kbd></button>
+    <button id="bMission">📋 ミッション<kbd>M</kbd></button>
     <button id="bMenu">≡</button>
   </div>
   <div id="hint"></div>
@@ -150,7 +157,7 @@
     <b>1</b> アクション（きる・ほる・こうげき・はなす）　<b>2</b> ほる　<b>3</b> たべる<br>
     <b>4</b> もちもの　<b>5</b> クラフト　<b>6</b> たてる　<b>7</b> てなずける<br>
     <b>8</b> まわす　<b>9</b> ともだち じどう⇔てうごき　Esc：メニュー<br>
-    <b>E</b> いえの なかに はいる・でる<br>
+    <b>E</b> いえの なかに はいる・でる　<b>0</b> おみせ　<b>M</b> ミッション<br>
     <b>ともだち（てうごき）</b> やじるしキー：いどう　Enter：アクション　右Shift：ジャンプ
   </div>
 </div>
@@ -181,6 +188,7 @@ const SLOTS = 3, slotKey = i => "boken-world-" + i;
 const META_KEY = "lumiteria-meta";
 const meta = Object.assign({ coins:605, up:{}, gifts:[] }, store.get(META_KEY) || {});
 meta.up = Object.assign({ hp:0, spd:0, atk:0 }, meta.up);
+meta.pulls ??= 0; meta.pity ??= 0; meta.freeAt ??= 0;
 const saveMeta = () => store.set(META_KEY, meta);
 function addCoins(n) { meta.coins += n; saveMeta(); }
 const UPGRADES = {
@@ -189,20 +197,6 @@ const UPGRADES = {
   atk: { name:"こうげき",   icon:"⚔️", desc:"こうげき +5" },
 };
 const UP_COST = [150, 300, 500];
-const GACHA_COST = 100;
-const GACHA = [
-  { w:20, r:"N",   icon:"🪵", name:"木 20こ",          give:{ wood:20 } },
-  { w:20, r:"N",   icon:"🪨", name:"石 20こ",          give:{ stone:20 } },
-  { w:15, r:"N",   icon:"🍱", name:"ごはん 3こ",        give:{ gohan:3 } },
-  { w:12, r:"R",   icon:"🔩", name:"てつ 8こ",          give:{ iron:8 } },
-  { w:10, r:"R",   icon:"🧶", name:"けいと 6こ",        give:{ wool:6 } },
-  { w:8,  r:"R",   icon:"🍳", name:"オムライス 2こ",     give:{ omelet:2 } },
-  { w:6,  r:"SR",  icon:"⛺", name:"おりたたみテント",   give:{ ftent:1 } },
-  { w:5,  r:"SR",  icon:"🐕", name:"いぬの なかま",      pet:"dog" },
-  { w:5,  r:"SR",  icon:"🐑", name:"ひつじの なかま",    pet:"sheep" },
-  { w:3,  r:"SSR", icon:"📦", name:"おりたたみの家",     give:{ fhouse:1 } },
-  { w:1,  r:"SSR", icon:"🏰", name:"おやしき ざいりょう セット", give:{ wood:40, stone:30, iron:12, wool:6 } },
-];
 const isTouch = matchMedia("(pointer:coarse)").matches;
 
 // ====== データ ======
@@ -213,7 +207,7 @@ const JOBS = {
   kenshi: { name:"けんし", icon:"🗡️", color:0x2e6bd1, desc:"HPが おおくて つよい。石のけんを もって スタート" },
 };
 const HOMES = {
-  mori: { name:"森の村",     icon:"🌳", x:-150, z:10,  desc:"大きな森の なかの 村。木が たくさん", houses:2 },
+  mori: { name:"森の村",     icon:"🌳", x:-150, z:10,  desc:"大きな森の なかの 村。木が たくさん", houses:4 },
   umi:  { name:"海辺の町",   icon:"🏖️", x:20,   z:150, desc:"海の そばの 町。すなはまが ひろがる", houses:2 },
   yama: { name:"山のふもと", icon:"⛰️", x:-10,  z:-95, desc:"高い山の ちかく。石や てつが ほれる", houses:1 },
   yuki: { name:"雪の里",     icon:"❄️", x:160,  z:-10, desc:"雪が つもる しずかな 里", houses:2 },
@@ -222,9 +216,11 @@ const ITEMS = {
   wood:["🪵","木"], stone:["🪨","石"], iron:["🔩","てつ"], soil:["🟫","つち"], wool:["🧶","けいと"],
   berry:["🍓","いちご"], egg:["🥚","たまご"], jam:["🍯","ジャム"], gohan:["🍱","ごはん"], pie:["🥧","いちごパイ"], omelet:["🍳","オムライス"],
   campfire:["🔥","たき火"], ftent:["⛺","たたんだテント"], fhouse:["📦","たたんだ家"],
+  hut:["🛖","木の小屋"], house:["🏠","ちいさな家"], stonehouse:["🏘️","石の家"], mansion:["🏰","おやしき"],
+  fchair:["🪑","いす"], ftable:["🍽️","テーブル"], fbed:["🛏️","ベッド"], fsofa:["🛋️","ソファ"], fshelf:["📚","本だな"], fplant:["🪴","はち植え"], flamp:["🪔","ランプ"], fflower:["🌷","花だん"],
 };
 const DEF_INV = Object.fromEntries(Object.keys(ITEMS).map(k => [k, 0]));
-const FOOD_KEYS = ["gohan","omelet","pie","jam","berry","egg"], MAT_KEYS = ["wood","stone","iron","soil","wool"], OTHER_KEYS = ["campfire","ftent","fhouse"];
+const FOOD_KEYS = ["gohan","omelet","pie","jam","berry","egg"], MAT_KEYS = ["wood","stone","iron","soil","wool"], OTHER_KEYS = ["campfire","ftent","fhouse","hut","house","stonehouse","mansion","fchair","ftable","fbed","fsofa","fshelf","fplant","flamp","fflower"];
 const FOODS = { gohan:{hp:40,full:true}, omelet:{hp:60,full:true}, pie:{hp:50,full:true}, jam:{hp:50,h:3}, berry:{hp:15,h:1}, egg:{hp:10,h:1} };
 const STARVE_DAYS = 10;
 const TOOLS = { axe:"🪓", pick:"⛏️", sword:"🗡️", isword:"⚔️" };
@@ -241,19 +237,29 @@ const COOK = [
   { id:"omelet", name:"オムライス", icon:"🍳", cost:{egg:2},   desc:"おなか いっぱい・HP +60" },
 ];
 const BUILDS = {
-  hut:       { kind:"house", name:"木の小屋",        icon:"🛖", cost:{wood:16},                          rank:1, dist:7,  clear:4,   desc:"木だけで つくれる ちいさな 小屋" },
+  hut:       { kind:"house", kit:true, name:"木の小屋",        icon:"🛖", cost:{wood:16},                          rank:1, dist:7,  clear:4,   desc:"木だけで つくれる ちいさな 小屋" },
   ftent:     { kind:"house", fold:true, name:"おりたたみテント", icon:"⛺", cost:{wood:8, wool:2},          rank:1.5, dist:6, clear:3, desc:"たたんで もちはこべる テント（🐑 けいとが いる）" },
   fhouse:    { kind:"house", fold:true, name:"おりたたみの家",   icon:"📦", cost:{wood:18, iron:3},         rank:2.5, dist:7, clear:4, desc:"たたんで もちはこべる 家。どこでも すぐ たてられる" },
-  house:     { kind:"house", name:"ちいさな家",      icon:"🏠", cost:{wood:24, stone:8},                 rank:2, dist:8,  clear:5,   desc:"まどと やねの ある 家" },
-  stonehouse:{ kind:"house", name:"石の家",          icon:"🏘️", cost:{stone:30, wood:8},                 rank:3, dist:8.5,clear:5.5, desc:"がんじょうな 石の 家。えんとつつき" },
-  mansion:   { kind:"house", name:"ごうかな おやしき", icon:"🏰", cost:{wood:40, stone:30, iron:12, wool:6}, rank:5, dist:12, clear:8, desc:"2かいだての 金ピカ おやしき。はしら・じゅうたん・花だんつき" },
+  house:     { kind:"house", kit:true, name:"ちいさな家",      icon:"🏠", cost:{wood:24, stone:8},                 rank:2, dist:8,  clear:5,   desc:"まどと やねの ある 家" },
+  stonehouse:{ kind:"house", kit:true, name:"石の家",          icon:"🏘️", cost:{stone:30, wood:8},                 rank:3, dist:8.5,clear:5.5, desc:"がんじょうな 石の 家。えんとつつき" },
+  mansion:   { kind:"house", kit:true, name:"ごうかな おやしき", icon:"🏰", cost:{wood:40, stone:30, iron:12, wool:6}, rank:5, dist:12, clear:8, desc:"2かいだての 金ピカ おやしき。はしら・じゅうたん・花だんつき" },
   floor: { kind:"part", name:"ゆか",       icon:"🟫", cost:{wood:3} },
   wall:  { kind:"part", name:"木のかべ",   icon:"🪵", cost:{wood:4} },
   swall: { kind:"part", name:"石のかべ",   icon:"🧱", cost:{stone:4} },
   roof:  { kind:"part", name:"やね",       icon:"🔺", cost:{wood:4}, desc:"かべの 上に のる 高さ" },
   door:  { kind:"part", name:"ドア",       icon:"🚪", cost:{wood:2}, desc:"とおりぬけ できる" },
   fire:  { kind:"misc", name:"たき火",     icon:"🔥", cost:{campfire:1}, fixed:true, desc:"クラフトで つくった たき火を おく" },
-  raise: { kind:"misc", name:"つちをもる", icon:"⛰️", cost:{soil:1}, fixed:true, dist:3, desc:"じめんを たかくする" },
+  raise: { kind:"misc", name:"つちを もどす", icon:"⛰️", cost:{soil:1}, fixed:true, dist:3, desc:"ほった あなを 土で うめて もとに もどす", clear:1 },
+  pstone: { kind:"misc", name:"石を おく",   icon:"🪨", cost:{stone:1}, fixed:true, dist:3, clear:1, desc:"石を じめんに おいて、かべや 小さな やまを つくる" },
+  piron:  { kind:"misc", name:"てつを おく", icon:"🔩", cost:{iron:1},  fixed:true, dist:3, clear:1, desc:"てつの かたまりを じめんに おく" },
+  fchair:  { kind:"furn", furn:true, name:"いす",         icon:"🪑",  cost:{fchair:1},  fixed:true, dist:3,   clear:1,   desc:"ちいさな いす" },
+  ftable:  { kind:"furn", furn:true, name:"テーブル",     icon:"🍽️", cost:{ftable:1},  fixed:true, dist:3,   clear:1.2, desc:"ごはんが おける テーブル" },
+  fbed:    { kind:"furn", furn:true, name:"ベッド",       icon:"🛏️", cost:{fbed:1},    fixed:true, dist:3.5, clear:1.5, desc:"ふかふかの ベッド" },
+  fsofa:   { kind:"furn", furn:true, name:"ソファ",       icon:"🛋️", cost:{fsofa:1},   fixed:true, dist:3.5, clear:1.5, desc:"すわると きもちいい ソファ" },
+  fshelf:  { kind:"furn", furn:true, name:"本だな",       icon:"📚",  cost:{fshelf:1},  fixed:true, dist:3,   clear:1,   desc:"ほんが たくさん はいる 本だな" },
+  fplant:  { kind:"furn", furn:true, name:"はち植え",     icon:"🪴",  cost:{fplant:1},  fixed:true, dist:3,   clear:1,   desc:"みどりが きれいな はち植え" },
+  flamp:   { kind:"furn", furn:true, name:"ランプ",       icon:"🪔",  cost:{flamp:1},   fixed:true, dist:3,   clear:1,   desc:"よるを あかるく てらす ランプ" },
+  fflower: { kind:"furn", furn:true, name:"花だん",       icon:"🌷",  cost:{fflower:1}, fixed:true, dist:3.5, clear:1.5, desc:"カラフルな 花だん" },
   fold:  { kind:"misc", name:"たたむ",     icon:"📦", cost:{}, fixed:true, desc:"おりたたみの家・テントを たたんで もちものに しまう（ぜんぶ もどる）" },
   remove:{ kind:"misc", name:"こわす",     icon:"💥", cost:{}, fixed:true, desc:"たてものを こわして ざいりょうを 半分 もどす" },
 };
@@ -263,6 +269,82 @@ const ANIMALS = {
   chicken: { name:"にわとり", icon:"🐔", need:1, desc:"まいにち たまご🥚を うむ" },
 };
 const MAX_PETS = 6;
+// ====== 村（家と 人） ======
+const SPOTS = { 1:[[0,-9]], 2:[[-9,-8],[9,-8]], 4:[[-10,-9],[10,-9],[-10,9],[10,9]] };   // 村の 家の 場所（家の 数だけ 村の人が いる）
+const VNAMES = ["ミナ","トム","ハナ","ケン","レイ","ソラ","モモ","ユウ","ナナ","ゴウ"];
+const VLINES = ["きょうは いい てんきね。", "森の おくには きのこが いっぱい あるのよ。", "さいきん たぬきが でるから、きを つけてね。", "いつも 村を まもって くれて ありがとう。", "家が ふえると、村が にぎやかに なるわね。", "じどうで たたかって くれる なかまは 心づよいね。"];
+const VGIFTS = [["berry",2], ["wood",2], ["stone",2], ["gohan",1], ["egg",1]];   // 1日に 1かい、おれいを くれる
+// ====== 暦（1ねん = 12がつ × 30にち） ======
+const MONTHS = ["1がつ","2がつ","3がつ","4がつ","5がつ","6がつ","7がつ","8がつ","9がつ","10がつ","11がつ","12がつ"];
+const SEASON = ["ふゆ","ふゆ","はる","はる","はる","なつ","なつ","なつ","あき","あき","あき","ふゆ"];
+const dateText = day => { const d0 = day-1, m = Math.floor((d0%360)/30); return `${Math.floor(d0/360)+1}ねん ${MONTHS[m]} ${d0%30+1}にち（${SEASON[m]}）`; };
+// ====== ガチャ（レアど：ふつう・すごい・伝説・まぼろし・大物） ======
+const TIERS = ["N","R","SR","SSR","UR"];
+const TIER = { N:"ふつう", R:"すごい", SR:"伝説", SSR:"まぼろし", UR:"大物" };
+const GIFT_POOL = {
+  N:   [ { icon:"🪵", name:"木 20こ", give:{ wood:20 } }, { icon:"🪨", name:"石 20こ", give:{ stone:20 } }, { icon:"🍱", name:"ごはん 3こ", give:{ gohan:3 } }, { icon:"🍓", name:"いちご 8こ", give:{ berry:8 } } ],
+  R:   [ { icon:"🔩", name:"てつ 8こ", give:{ iron:8 } }, { icon:"🧶", name:"けいと 6こ", give:{ wool:6 } }, { icon:"🍳", name:"オムライス 2こ", give:{ omelet:2 } }, { icon:"🥚", name:"たまご 5こ", give:{ egg:5 } } ],
+  SR:  [ { icon:"⛺", name:"おりたたみテント", give:{ ftent:1 } }, { icon:"🐕", name:"いぬの なかま", pet:"dog" }, { icon:"🐑", name:"ひつじの なかま", pet:"sheep" }, { icon:"🐔", name:"にわとりの なかま", pet:"chicken" }, { icon:"🪑", name:"いす 2こ", give:{ fchair:2 } } ],
+  SSR: [ { icon:"📦", name:"おりたたみの家", give:{ fhouse:1 } }, { icon:"🛏️", name:"ベッド", give:{ fbed:1 } }, { icon:"🛋️", name:"ソファ", give:{ fsofa:1 } }, { icon:"⚔️", name:"てつのけん", tool:"isword" } ],
+  UR:  [ { icon:"🏰", name:"おやしき ざいりょう セット", give:{ wood:40, stone:30, iron:12, wool:6 } }, { icon:"🏰", name:"おやしき（まるごと）", give:{ mansion:1 } }, { icon:"🌷", name:"花だん 5こ", give:{ fflower:5 } }, { icon:"💎", name:"かがやく 金銀財宝", coins:1500 } ],
+};
+const FREE_WAIT = 30*60*1000;
+// w は [ふつう,すごい,伝説,まぼろし,大物] の 出やすさ（%）
+const GACHAS = [
+  { name:"むりょう ガチャ",   icon:"🎁", cost:0,    free:true, w:[62,28,8,2,0],     desc:"30ぷんに 1かい むりょうで ひける" },
+  { name:"ふつう ガチャ",     icon:"🎰", cost:100,  w:[55,30,10,4,1] },
+  { name:"レア ガチャ",       icon:"💠", cost:300,  w:[30,38,20,9,3] },
+  { name:"スーパー ガチャ",   icon:"🌟", cost:800,  w:[12,30,32,19,7] },
+  { name:"ウルトラ ガチャ",   icon:"👑", cost:2000, w:[4,16,30,32,18] },
+];
+let gSel = 1;
+// ====== おみせ（コインで かう） ======
+const SHOP = [
+  { k:"hut", price:300 }, { k:"house", price:800 }, { k:"stonehouse", price:1500 }, { k:"mansion", price:5000 },
+  { k:"fchair", price:60 }, { k:"ftable", price:90 }, { k:"fbed", price:150 }, { k:"fsofa", price:200 },
+  { k:"fshelf", price:120 }, { k:"fplant", price:40 }, { k:"flamp", price:70 }, { k:"fflower", price:80 },
+];
+// ====== ミッション（たっせいで コイン） ======
+const MISSIONS = [
+  { id:"w1",  t:"木を 10こ あつめる",            key:"wood",   n:10,  c:30 },
+  { id:"w2",  t:"木を 50こ あつめる",            key:"wood",   n:50,  c:90 },
+  { id:"w3",  t:"木を 200こ あつめる",           key:"wood",   n:200, c:300 },
+  { id:"s1",  t:"石を 10こ あつめる",            key:"stone",  n:10,  c:30 },
+  { id:"s2",  t:"石を 60こ あつめる",            key:"stone",  n:60,  c:120 },
+  { id:"i1",  t:"てつを 5こ あつめる",           key:"iron",   n:5,   c:50 },
+  { id:"i2",  t:"てつを 30こ あつめる",          key:"iron",   n:30,  c:150 },
+  { id:"b1",  t:"いちごを 15こ あつめる",        key:"berry",  n:15,  c:30 },
+  { id:"d1",  t:"地面を 10かい ほる",            key:"dig",    n:10,  c:30 },
+  { id:"d2",  t:"地面を 60かい ほる",            key:"dig",    n:60,  c:120 },
+  { id:"k1",  t:"かげまるを 5ひき たおす",       key:"kills",  n:5,   c:50 },
+  { id:"k2",  t:"かげまるを 30ひき たおす",      key:"kills",  n:30,  c:200 },
+  { id:"t1",  t:"どうぶつを 1ひき なかまに",     key:"tamed",  n:1,   c:40 },
+  { id:"t2",  t:"どうぶつを 4ひき なかまに",     key:"tamed",  n:4,   c:150 },
+  { id:"p1",  t:"なかまの どうぶつが 2ひき いる", key:"pets",   n:2,   c:80 },
+  { id:"e1",  t:"たべものを 5かい たべる",       key:"eaten",  n:5,   c:30 },
+  { id:"e2",  t:"たべものを 30かい たべる",      key:"eaten",  n:30,  c:120 },
+  { id:"v1",  t:"まわりの人と 5かい はなす",     key:"talk",   n:5,   c:50 },
+  { id:"v2",  t:"まわりの人と 30かい はなす",    key:"talk",   n:30,  c:150 },
+  { id:"h1",  t:"はじめての 家を たてる",        key:"built",  n:1,   c:60 },
+  { id:"h2",  t:"家を 4けん たてる",            key:"built",  n:4,   c:250 },
+  { id:"f1",  t:"かぐを 3こ おく",              key:"furn",   n:3,   c:80 },
+  { id:"f2",  t:"かぐを 10こ おく",             key:"furn",   n:10,  c:250 },
+  { id:"sh1", t:"おみせで なにかを かう",        key:"bought", n:1,   c:20 },
+  { id:"sh2", t:"おみせで 10こ かう",           key:"bought", n:10,  c:150 },
+  { id:"c1",  t:"どうぐを 3こ つくる",          key:"craft",  n:3,   c:60 },
+  { id:"fo1", t:"家を たたんで しまう",         key:"fold",   n:1,   c:50 },
+  { id:"dy1", t:"3日 いきのびる",               key:"day",    n:3,   c:60 },
+  { id:"dy2", t:"7日 いきのびる",               key:"day",    n:7,   c:200 },
+  { id:"dy3", t:"30日 いきのびる",              key:"day",    n:30,  c:700 },
+  { id:"a1",  t:"10さいに なる",                key:"age",    n:10,  c:100 },
+  { id:"g1",  t:"ガチャを 3かい ひく",          key:"pulls",  n:3,   c:50 },
+  { id:"g2",  t:"ガチャを 15かい ひく",         key:"pulls",  n:15,  c:200 },
+];
+// ====== バランス（じょうきょうに あわせて しぜんに かわる） ======
+// コインが すくない ほど 多く もらえ、たくさん もっている ほど 少なくなる
+const coinRate = () => clamp(1.6 - meta.coins/2500, .6, 1.6);
+// ざいりょうが すくない ほど 多く とれる（もちすぎは とれる数が へる）
+const scarce = k => { const n = S.inv[k]||0; return n < 10 ? 2 : n < 40 ? 1 : 0; };
 
 // ====== 乱数とノイズ ======
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -287,6 +369,7 @@ function biome(x,z,h) { if (h < .9) return "beach"; if (x > 125) return "snow"; 
 const renderer = new THREE.WebGLRenderer({ canvas:$("#cv"), antialias:true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, .1, 600);
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); }
@@ -399,6 +482,7 @@ function genObjects() {
   for (let i=0; i<16000; i++) {
     const x = (r()*2-1)*275, z = (r()*2-1)*275, p = r(), s = .8 + r()*.6, rot = r()*6.283, h = baseH(x,z);
     if (h < .4 || Math.hypot(x-S.spawn.x, z-S.spawn.z) < 17) continue;
+    if (S.builds.some(b => Math.hypot(b.x-x, b.z-z) < 7)) continue;   // たてものの まわりには 木や石を おかない
     const b = biome(x,z,h); let kind = null;
     if (b === "forest")   kind = p < .3 ? "tree" : p < .34 ? "bush" : p < .36 ? "rock" : null;
     else if (b === "plains")   kind = p < .045 ? "tree" : p < .085 ? "bush" : p < .1 ? "rock" : null;
@@ -526,6 +610,16 @@ function makeBuild(type) {
     for (const s of [-1,1]) { for (const z of [-1.25, 1.25]) g.add(box(.36,2.6,.08,BM.metal,s*2.35,1.6,z,false)); win(g, s*2.35, 1.9, 0, false); }
     g.add(box(5.4,.3,5.4,BM.metal2,0,3.05,0,false));
   }
+  if (type === "pstone" || type === "piron") { const mat = type === "pstone" ? BM.stone : BM.metal;
+    for (const [x,z,s] of [[0,0,1],[.55,.25,.7],[-.35,.45,.6]]) { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.42*s,0), mat); m.position.set(x,.3*s,z); m.rotation.set(z,x,0); m.castShadow = m.receiveShadow = true; m.userData.solid = true; g.add(m); } }
+  if (type === "fchair") { g.add(box(.9,.12,.9,BM.wood,0,.5,0), box(.9,.9,.12,BM.wood,0,.95,-.4)); for (const x of [-.36,.36]) for (const z of [-.36,.36]) g.add(box(.1,.46,.1,BM.dark,x,.23,z,false)); }
+  if (type === "ftable") { g.add(box(1.6,.12,1,BM.wood,0,.9,0)); for (const x of [-.7,.7]) for (const z of [-.4,.4]) g.add(box(.1,.9,.1,BM.dark,x,.45,z,false)); }
+  if (type === "fbed") { g.add(box(1.6,.5,2.2,BM.wood,0,.25,0)); g.add(box(1.5,.2,2.1,BM.white,0,.6,0,false)); g.add(box(.9,.2,.5,BM.pink,0,.8,-.75,false)); }
+  if (type === "fsofa") { g.add(box(2,.5,.9,BM.carpet,0,.25,0)); g.add(box(2,.8,.3,BM.carpet,0,.65,-.3)); g.add(box(.25,.6,.9,BM.carpet,-.9,.4,0)); g.add(box(.25,.6,.9,BM.carpet,.9,.4,0)); }
+  if (type === "fshelf") { g.add(box(1.2,2,.4,BM.dark,0,1,0)); for (const y of [.5,1.1,1.7]) g.add(box(1.1,.05,.36,BM.wood,0,y,.02,false)); g.add(box(.2,.4,.2,BM.gold,-.3,.7,.1,false), box(.2,.4,.2,BM.blue,.1,.7,.1,false)); }
+  if (type === "fplant") { const pot = new THREE.Mesh(new THREE.CylinderGeometry(.3,.22,.5,12), BM.roof); pot.position.y = .25; pot.castShadow = true; g.add(pot); const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(.45,1), BM.green); leaf.position.y = .9; leaf.castShadow = true; g.add(leaf); }
+  if (type === "flamp") { g.add(cyl(.04,1.8,BM.metal,0,.9,0,false)); const shade = new THREE.Mesh(new THREE.ConeGeometry(.35,.4,12,1,true), BM.gold); shade.position.y = 1.85; g.add(shade); g.add(box(.3,.3,.3,BM.glow,0,1.6,0,false)); const L = new THREE.PointLight(0xffd27a, 5, 7, 1.5); L.position.y = 1.6; g.add(L); }
+  if (type === "fflower") { g.add(box(2,.3,.9,BM.dark,0,.15,0)); for (let i=0;i<6;i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(.15,8,6), i % 2 ? BM.pink : BM.gold); f.position.set(-.8+i*.32,.45,0); f.castShadow = true; g.add(f); } }
   if (type === "raise") { const m = new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,.3,16), BM.dark); m.position.y = .15; g.add(m); }
   return g;
 }
@@ -539,7 +633,8 @@ function placeBuild(b) {
 function rebuildColliders() { colliders = S.builds.flatMap(b => b.cols || []); }
 function costOf(type) {
   const B = BUILDS[type];
-  if (B.fold && (S.inv[type]||0) > 0) return { [type]:1 };   // たたんだ家を もっていれば それを つかう
+  if (B.furn) return { [type]:1 };
+  if ((B.fold || B.kit) && (S.inv[type]||0) > 0) return { [type]:1 };   // たたんだ家・かった家を もっていれば それを つかう   // たたんだ家を もっていれば それを つかう
   const c = { ...B.cost }; if (S.job === "daiku" && !B.fixed) for (const k in c) c[k] = Math.ceil(c[k]/2); return c;
 }
 const canPay = c => Object.entries(c).every(([k,v]) => (S.inv[k]||0) >= v);
@@ -615,12 +710,12 @@ function spawnEnemy() {
 function killEnemy(e, reward) {
   if (!enemies.includes(e)) return;
   scene.remove(e.g); enemies.splice(enemies.indexOf(e), 1);
-  if (reward) { bits(e.x, groundAt(e.x,e.z)+.6, e.z, 0x8a6fb0, 14); if (Math.random() < .5) gain("berry", 1); }
+  if (reward) { cnt("kills"); bits(e.x, groundAt(e.x,e.z)+.6, e.z, 0x8a6fb0, 14); if (Math.random() < .5) gain("berry", 1); }
 }
 function hitEnemy(e, dmg, ax, az, who="") {
   e.hp -= dmg; e.flash = .15; const a = Math.atan2(e.z-az, e.x-ax); e.x += Math.cos(a)*1.8; e.z += Math.sin(a)*1.8;
   bits(e.x, groundAt(e.x,e.z)+.8, e.z, 0xffffff, 4);
-  if (e.hp <= 0) { killEnemy(e, true); addCoins(10); toast(`${who}かげまる を たおした！ 🪙+10`); }
+  if (e.hp <= 0) { killEnemy(e, true); const cc = Math.round(10*coinRate()); addCoins(cc); toast(`${who}かげまる を たおした！ 🪙+${cc}`); }
 }
 
 // ====== どうぶつ ======
@@ -719,7 +814,7 @@ function tame() {
   const A = ANIMALS[a.kind];
   S.inv.berry--; a.love++; P.swing = .3; P.face = Math.atan2(a.x-P.x, a.z-P.z);
   bits(a.x, groundAt(a.x,a.z)+1.2, a.z, 0xff7eb6, 10);
-  if (a.love >= A.need) { a.tamed = true; S.pets.push({ kind:a.kind }); addHeart(a); toast(`${A.icon} ${A.name} が なかまに なった！<br>${A.desc}`); }
+  if (a.love >= A.need) { a.tamed = true; S.pets.push({ kind:a.kind }); addHeart(a); cnt("tamed"); toast(`${A.icon} ${A.name} が なかまに なった！<br>${A.desc}`); }
   else toast(`🍓 をあげた！ ❤️ ${A.name} が よろこんでる（${a.love}/${A.need}）`);
 }
 
@@ -804,6 +899,7 @@ function updateParent(dt) {
   momFood.visible = H.stock > 0; momFood.position.y = 2.65 + Math.sin(performance.now()/300)*.1;
 }
 function openParent() {
+  cnt("talk");
   const st = S.parent.stock;
   const line = S.hunger >= 5 ? "まあ、おなか ペコペコでしょう！ はやく たべなさい" : st ? "ごはん できてるわよ。もっていきなさい" : "ごはんは まいにち 1こ つくるからね（3こまで ためておくわ）";
   openMenu(`<h2>👩 おかあさん</h2><p>「${line}」</p>
@@ -825,7 +921,78 @@ function bits(x,y,z,color,n=8) { const mat = Lam(color);
     bitsArr.push({ m, vx:(Math.random()-.5)*5, vy:Math.random()*5+2, vz:(Math.random()-.5)*5, life:.7 }); } }
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.innerHTML = t; $("#toasts").appendChild(d);
   setTimeout(() => d.remove(), 3200); while ($("#toasts").children.length > 4) $("#toasts").firstChild.remove(); }
-function gain(k, n, pre="") { S.inv[k] = (S.inv[k]||0) + n; toast(`${pre}${ITEMS[k][0]} ${ITEMS[k][1]} +${n}`); }
+function gain(k, n, pre="") { S.inv[k] = (S.inv[k]||0) + n; cnt(k, n); toast(`${pre}${ITEMS[k][0]} ${ITEMS[k][1]} +${n}`); }
+
+// ====== ミッション・おみせ・村の人 ======
+function cnt(k, n=1) { if (S) S.st[k] = (S.st[k]||0) + n; }
+const missionVal = m => m.key === "day" ? S.day : m.key === "age" ? S.age : m.key === "pets" ? S.pets.length : m.key === "pulls" ? (meta.pulls||0) : (S.st[m.key]||0);
+function openMissions() {
+  if (!running) return;
+  if (buildMode) setBuild(null);
+  const done = MISSIONS.filter(m => S.mDone[m.id]).length;
+  const rows = MISSIONS.map(m => { const v = missionVal(m), got = !!S.mDone[m.id], ok = v >= m.n, pct = Math.min(100, Math.floor(v/m.n*100));
+    return `<div class="row${got ? " lock" : ""}"><span class="ic">${got ? "✅" : ok ? "🎁" : "📝"}</span><div class="grow"><b>${m.t}</b><small>${Math.min(v, m.n)} / ${m.n}　🪙${m.c}</small>
+      <div style="height:6px;background:#3a3358;border-radius:4px;overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${pct}%;background:#7bd36b"></i></div></div>
+      <button data-m="${m.id}" ${ok && !got ? "" : "disabled"}>${got ? "もらった" : "うけとる"}</button></div>`; }).join("");
+  openMenu(`<h2>📋 ミッション（${done}/${MISSIONS.length}）</h2><p class="note" style="margin-top:0">たっせいすると コインが もらえるよ</p>${rows}
+    <p style="text-align:center;margin-top:14px"><button data-close>とじる<kbd>M</kbd></button></p>`, "missions");
+  screen.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { const m = MISSIONS.find(x => x.id === b.dataset.m); S.mDone[m.id] = true; addCoins(m.c); save(); toast(`📋 ミッション たっせい！ 🪙+${m.c}`); openMissions(); });
+  screen.querySelector("[data-close]").onclick = closeMenu;
+}
+function openShop() {
+  if (!running) return;
+  if (inside) return toast("おみせは そとで ひらくよ");
+  if (buildMode) setBuild(null);
+  const row = s => { const B = BUILDS[s.k], it = ITEMS[s.k], ok = meta.coins >= s.price;
+    return `<div class="row${ok ? "" : " lock"}"><span class="ic">${it[0]}</span><div class="grow"><b>${it[1]}</b><small>${B.desc || ""}</small><div class="cost">もってる：${S.inv[s.k]||0}こ</div></div>
+      <button data-buy="${s.k}" ${ok ? "" : "disabled"}>🪙${s.price}</button></div>`; };
+  openMenu(`<h2>🛒 おみせ</h2><p class="stat">🪙 コイン：<b>${meta.coins}</b></p>
+    <p class="note" style="margin-top:0">かった ものは 6（たてる）で つかえるよ。コインは ミッションや かげまる たおし、木や石で たまるよ</p>
+    <h3>🏠 いえ（まるごと かう）</h3>${SHOP.filter(s => BUILDS[s.k].kit).map(row).join("")}
+    <h3>🪑 かぐ（おいて かざれる）</h3>${SHOP.filter(s => BUILDS[s.k].furn).map(row).join("")}
+    <p style="text-align:center;margin-top:14px"><button data-close>とじる<kbd>0</kbd></button></p>`, "shop");
+  screen.querySelectorAll("[data-buy]").forEach(b => b.onclick = () => buy(b.dataset.buy));
+  screen.querySelector("[data-close]").onclick = closeMenu;
+}
+function buy(k) {
+  const s = SHOP.find(x => x.k === k); if (!s) return;
+  if (meta.coins < s.price) return toast(`🪙 コインが たりないよ（${s.price}ひつよう）`);
+  addCoins(-s.price); S.inv[k] = (S.inv[k]||0) + 1; cnt("bought"); save();
+  toast(`${ITEMS[k][0]} ${ITEMS[k][1]} を かった！ 6（たてる）で おけるよ`);
+  openShop();
+}
+// 村の人：家の まえに すんでいて、ときどき まちを あるく。1日に 1かい おれいを くれる
+let vils = [];
+function spawnVillagers() {
+  vils.forEach(v => scene.remove(v.h.g)); vils = [];
+  S.villagers.forEach((d, i) => {
+    const h = makeHuman([0x3498db, 0x9b59b6, 0x16a085, 0xe67e22][i % 4], "villager"); scene.add(h.g);
+    const lb = labelSprite(d.name, "#e8ffe8"); lb.position.y = 2.2; h.g.add(lb);
+    const B = body(); B.x = d.hx; B.z = d.hz + 5; B.y = groundAt(B.x, B.z);
+    vils.push({ d, h, B, t:Math.random()*4, tx:B.x, tz:B.z });
+  });
+}
+function updateVillagers(dt) {
+  for (const v of vils) {
+    v.t -= dt; let mx = 0, mz = 0;
+    if (Math.hypot(P.x-v.B.x, P.z-v.B.z) < 3.5) faceTo(v.B, P);
+    else {
+      if (v.t <= 0) { v.t = 2 + Math.random()*4; const a = Math.random()*6.283, r = Math.random()*3.5; v.tx = v.d.hx + Math.cos(a)*r; v.tz = v.d.hz + 5 + Math.sin(a)*r; }
+      const dx = v.tx-v.B.x, dz = v.tz-v.B.z, d = Math.hypot(dx,dz); if (d > .3) { mx = dx/d; mz = dz/d; }
+    }
+    const moving = stepBody(v.B, mx, mz, 1.3, dt, 1, false);
+    animHuman(v.h, v.B, moving, 1, dt);
+  }
+}
+function talkVillager(v) {
+  v.B.face = Math.atan2(P.x-v.B.x, P.z-v.B.z); P.swing = .3; cnt("talk");
+  const line = `${v.d.name}「${VLINES[(Math.random()*VLINES.length) | 0]}」`;
+  if (v.d.gift !== S.day) {
+    v.d.gift = S.day; const [k, n] = VGIFTS[(Math.random()*VGIFTS.length) | 0];
+    S.inv[k] = (S.inv[k]||0) + n; cnt(k, n);
+    toast(`${line}<br>🎁 おれいに ${ITEMS[k][0]} ${ITEMS[k][1]} ${n}こ`);
+  } else toast(line);
+}
 
 // ====== 入力（そうさは 1〜9） ======
 const keys = {};
@@ -839,7 +1006,9 @@ addEventListener("keydown", e => {
   if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault();
   if (e.code === "Escape") { if (menuOpen) { if (menuKind !== "dead") closeMenu(); } else if (buildMode) setBuild(null); else openPause(); return; }
   const m = e.code.match(/^(?:Digit|Numpad)([1-9])$/), n = m ? +m[1] : 0;
-  if (menuOpen) { if (n && MENU_KEY[n] === menuKind) closeMenu(); return; }
+  if (menuOpen) { if (n && MENU_KEY[n] === menuKind) closeMenu(); if ((e.code === "KeyM" && menuKind === "missions") || ((e.code === "Digit0" || e.code === "Numpad0") && menuKind === "shop")) closeMenu(); return; }
+  if (e.code === "Digit0" || e.code === "Numpad0") { if (!e.repeat) openShop(); return; }
+  if (e.code === "KeyM") { if (!e.repeat) openMissions(); return; }
   if (e.code === "KeyE") { if (!e.repeat) toggleDoor(); return; }
   if (n && !e.repeat) { if (!inside) NUMACT[n](); else if (n === 1) insideAct(); else if ([3,4,5].includes(n)) NUMACT[n](); }
   if (e.code === "Space" && !inside) jump();
@@ -870,6 +1039,8 @@ $("#bBag").onclick = () => !menuOpen && openBag();
 $("#bCraft").onclick = () => !menuOpen && openCraft();
 $("#bBuild").onclick = () => !menuOpen && openBuild();
 $("#bFriend").onclick = () => !menuOpen && toggleFriend();
+$("#bShop").onclick = () => !menuOpen && openShop();
+$("#bMission").onclick = () => !menuOpen && openMissions();
 $("#bMenu").onclick = () => !menuOpen && openPause();
 
 // ====== アクション ======
@@ -880,6 +1051,7 @@ function findTarget() {
   for (const e of enemies) { const d = Math.hypot(e.x-P.x, e.z-P.z); if (d < 2.8 && d < bd) { bd = d; best = { type:"enemy", e }; } }
   if (best) return best;
   if (mom && mom.g.visible && Math.hypot(MOM.x-P.x, MOM.z-P.z) < 2.6) return { type:"parent" };
+  { let vb = null, vd = 2.6; for (const v of vils) { const d = Math.hypot(v.B.x-P.x, v.B.z-P.z); if (d < vd) { vd = d; vb = v; } } if (vb) return { type:"villager", v:vb }; }
   nearObjs(P.x, P.z, o => { const d = Math.hypot(o.x-P.x, o.z-P.z) - o.r; if (d < 1.4 && d < bd) { bd = d; best = { type:"obj", o }; } });
   return best;
 }
@@ -890,6 +1062,7 @@ function act() {
   P.actCd = .35; P.swing = .3;
   const t = findTarget(); if (!t) return;
   if (t.type === "parent") return openParent();
+  if (t.type === "villager") return talkVillager(t.v);
   if (t.type === "enemy") return hitEnemy(t.e, 8 + meta.up.atk*5 + (S.tools.isword ? 16 : S.tools.sword ? 8 : 0) + (S.job === "kenshi" ? 6 : 0), P.x, P.z);
   const o = t.o;
   if (o.kind === "ore" && !S.tools.pick) return toast("⛏️ つるはしが ないと てつは ほれないよ（クラフトで つくろう）");
@@ -907,13 +1080,13 @@ function hitObj(o, power, byFriend) {
   const color = { tree:0x7a5230, pine:0x7a5230, rock:0x888888, ore:0xb87545, bush:0x3f7d32 }[o.kind];
   bits(o.x, y+1, o.z, color, 5);
   if (o.hp > 0) return false;
-  o.gone = true; placeObj(o); S.removed.push(o.id); bits(o.x, y+1.5, o.z, color, 14); addCoins(1);
+  o.gone = true; placeObj(o); S.removed.push(o.id); bits(o.x, y+1.5, o.z, color, 14); addCoins(Math.round(2*coinRate()));
   const pre = byFriend ? `🤝 ${esc(S.friendName)}：` : "";
   const bonus = k => byFriend ? 0 : (S.job === k ? (k === "koufu" && o.kind === "ore" ? 1 : 2) : 0);
-  if (o.kind === "tree" || o.kind === "pine") gain("wood", 3 + bonus("kikori"), pre);
-  if (o.kind === "rock") gain("stone", 3 + bonus("koufu"), pre);
-  if (o.kind === "ore")  gain("iron", 2 + bonus("koufu"), pre);
-  if (o.kind === "bush") gain("berry", 3, pre);
+  if (o.kind === "tree" || o.kind === "pine") gain("wood", 3 + bonus("kikori") + scarce("wood"), pre);
+  if (o.kind === "rock") gain("stone", 3 + bonus("koufu") + scarce("stone"), pre);
+  if (o.kind === "ore")  gain("iron", 2 + bonus("koufu") + scarce("iron"), pre);
+  if (o.kind === "bush") gain("berry", 3 + (S.hunger >= 3 ? 2 : 0), pre);
   return true;
 }
 function dig() {
@@ -922,7 +1095,7 @@ function dig() {
   const [fx,fz] = [Math.sin(P.face), Math.cos(P.face)], x = P.x + fx*1.8, z = P.z + fz*1.8;
   if (groundAt(x,z) <= -7.5) return toast("これ以上 ふかく ほれないよ");
   modifyTerrain(x, z, -.7, 2.4); bits(x, groundAt(x,z)+.3, z, 0x7a5230, 8);
-  S.inv.soil = (S.inv.soil||0) + 1;
+  S.inv.soil = (S.inv.soil||0) + 1; cnt("dig");
 }
 // たべる（k が ないときは じどうで えらぶ）
 function eat(k, inMenu) {
@@ -931,7 +1104,7 @@ function eat(k, inMenu) {
   if (!k) { const order = S.hunger >= 1 ? ["gohan","omelet","pie","jam","berry","egg"] : ["berry","egg","jam","gohan","pie","omelet"]; k = order.find(f => S.inv[f] > 0); }
   if (!k || !(S.inv[k] > 0)) return toast("たべものが ないよ。おうちの おかあさん（👩）に ごはんを もらおう 🍱");
   if (S.hunger < .3 && S.hp >= mx) return toast("おなかいっぱい！");
-  const f = FOODS[k]; S.inv[k]--; S.hp = Math.min(mx, S.hp + f.hp);
+  const f = FOODS[k]; S.inv[k]--; S.hp = Math.min(mx, S.hp + f.hp); cnt("eaten");
   S.hunger = f.full ? 0 : Math.max(0, S.hunger - f.h); S.hw = Math.floor(S.hunger);
   toast(`${ITEMS[k][0]} ${ITEMS[k][1]} を たべた！ HP +${f.hp}・${f.full ? "おなか いっぱい！" : `おなか ${f.h}日ぶん ふくれた`}`);
 }
@@ -953,17 +1126,18 @@ function placeCurrent() {
     const b = nearestBuild(x, z, buildMode === "fold" ? isFold : null);
     if (!b) return toast(buildMode === "fold" ? "ちかくに たためる 家（⛺📦）が ないよ" : "ちかくに こわせる たてものが ないよ");
     scene.remove(b.group); S.builds.splice(S.builds.indexOf(b),1); rebuildColliders();
-    if (isFold(b)) { S.inv[b.type] = (S.inv[b.type]||0) + 1; bits(b.x, groundAt(b.x,b.z)+1, b.z, 0x6fb7c9, 16); toast(`📦 ${BUILDS[b.type].name} を たたんで もちものに しまった`); return; }
+    if (isFold(b) || BUILDS[b.type].furn) { if (isFold(b)) cnt("fold"); S.inv[b.type] = (S.inv[b.type]||0) + 1; bits(b.x, groundAt(b.x,b.z)+1, b.z, 0x6fb7c9, 16); toast(`📦 ${BUILDS[b.type].name} を たたんで もちものに しまった`); return; }
     const c = { ...BUILDS[b.type].cost }; if (S.job === "daiku" && !BUILDS[b.type].fixed) for (const k in c) c[k] = Math.ceil(c[k]/2);
-    for (const [k,v] of Object.entries(c)) if (k !== "soil") S.inv[k] = (S.inv[k]||0) + Math.floor(v/2) + (k === "campfire" ? 1 : 0);
+    for (const [k,v] of Object.entries(c)) if (k !== "soil") S.inv[k] = (S.inv[k]||0) + (BUILDS[b.type].fixed ? v : Math.floor(v/2));
     bits(b.x, groundAt(b.x,b.z)+1, b.z, 0xb98250, 16); toast(`${BUILDS[b.type].name} を こわした`); return;
   }
   const c = costOf(buildMode);
   if (!canPay(c)) return toast("ざいりょうが たりないよ：" + costHTML(c));
   if (groundAt(x,z) < -.5 && buildMode !== "raise") return toast("水の 中には たてられないよ");
   pay(c);
-  if (buildMode === "raise") { modifyTerrain(x, z, .7, 2.4); return; }
+  if (buildMode === "raise") { modifyTerrain(x, z, .7, 2.4); if (!canPay(costOf("raise"))) setBuild(null); return; }
   const b = { type:buildMode, x, z, rot:buildRot }; S.builds.push(b); placeBuild(b);
+  if (BUILDS[buildMode].kind === "house") cnt("built"); if (BUILDS[buildMode].furn) cnt("furn");
   const clr = BUILDS[buildMode].clear || 2.5;
   nearObjs(x, z, o => { if (Math.hypot(o.x-x, o.z-z) < clr) { o.gone = true; placeObj(o); S.removed.push(o.id); } }, 2);
   bits(x, groundAt(x,z)+1, z, 0xffffff, 10);
@@ -1008,7 +1182,7 @@ function openCraft() {
   screen.querySelectorAll("[data-craft]").forEach(b => b.onclick = () => {
     const r = RECIPES.find(x => x.id === b.dataset.craft); pay(r.cost);
     if (r.tool) S.tools[r.id] = true; else S.inv[r.id] = (S.inv[r.id]||0) + 1;
-    toast(`${r.icon} ${r.name} を つくった！`); openCraft(); });
+    cnt("craft"); toast(`${r.icon} ${r.name} を つくった！`); openCraft(); });
   screen.querySelector("[data-close]").onclick = closeMenu;
 }
 function openBuild() {
@@ -1021,7 +1195,7 @@ function openBuild() {
     return `<div class="row${ok ? "" : " lock"}"><span class="ic">${b.icon}</span><div class="grow"><b>${b.name}</b>${tag}<small>${b.desc}</small>${have}<div class="cost">${costHTML(c)}</div></div>
       <button data-b="${k}" ${ok ? "" : "disabled"}>${ok ? "たてる" : "たりない"}</button></div>`; };
   const row = k => { const b = BUILDS[k]; return `<div class="row"><span class="ic">${b.icon}</span><div class="grow"><b>${b.name}</b>${b.desc ? `<small>${b.desc}</small>` : ""}<div class="cost">${costHTML(costOf(k))}</div></div>
-      <button data-b="${k}">えらぶ</button></div>`; };
+      <button data-b="${k}" ${canPay(costOf(k)) ? "" : "disabled"}>えらぶ</button></div>`; };
   openMenu(`<h2>🏠 たてる</h2><p class="note" style="margin-top:0">いま もっている ものによって たてられる 家が かわるよ。えらぶと まえに みどりの かげが でる。${isTouch ? "✊で おく・🔄で まわす" : "1 / クリックで おく・8 で まわす・Esc で やめる"}${S.job === "daiku" ? "<br>🔨 だいく なので ざいりょうが 半分！" : ""}</p>
     ${best ? `<p style="text-align:center"><button class="big" data-b="${best}">✨ もちもので いちばん いい家：${BUILDS[best].icon} ${BUILDS[best].name}</button></p>`
       : `<p class="note">いまの もちものでは 家が たてられないよ。木を あつめよう（${BUILDS.hut.icon} 木の小屋は ${costHTML(costOf("hut"))}）</p>`}
@@ -1029,13 +1203,14 @@ function openBuild() {
     <h3>🔒 ざいりょうが たりない家</h3>${cant.map(houseRow).join("") || '<p class="note">ぜんぶ たてられる！</p>'}
     <p class="note">💡 🧶けいと は 🐑ひつじ を なかまに すると まいにち もらえる。🔩てつ は つるはしで ほれる</p>
     <h3>🧱 パーツで じぶんで つくる</h3>${keysOf("part").map(row).join("")}
+    <h3>🪑 かぐ（🛒 おみせで かってね）</h3>${keysOf("furn").map(row).join("")}
     <h3>🛠️ そのほか</h3>${keysOf("misc").map(row).join("")}
     <p style="text-align:center;margin-top:14px"><button data-close>とじる<kbd>6</kbd></button></p>`, "build");
   screen.querySelectorAll("[data-b]").forEach(b => b.onclick = () => { closeMenu(); setBuild(b.dataset.b); toast(`${BUILDS[b.dataset.b].icon} ${BUILDS[b.dataset.b].name} を えらんだ`); });
   screen.querySelector("[data-close]").onclick = closeMenu;
 }
 function openPause() {
-  openMenu(`<h2>≡ メニュー</h2><p>${esc(S.name)}（${S.age}さい・${JOBS[S.job].name}）・🤝 ${esc(S.friendName)}<br>${HOMES[S.home].icon} ${HOMES[S.home].name} うまれ ・ ${S.day}日目 ・ 敵：${S.enemies ? "あり" : "なし"}<br>🍙 おなか：あと ${Math.max(0, STARVE_DAYS - S.hunger).toFixed(1)}日 ・ 🐾 なかま ${S.pets.length}ひき</p>
+  openMenu(`<h2>≡ メニュー</h2><p>${esc(S.name)}（${S.age}さい・${JOBS[S.job].name}）・🤝 ${esc(S.friendName)}<br>${HOMES[S.home].icon} ${HOMES[S.home].name} うまれ ・ ${dateText(S.day)} ・ 敵：${S.enemies ? "あり" : "なし"}<br>🍙 おなか：あと ${Math.max(0, STARVE_DAYS - S.hunger).toFixed(1)}日 ・ 🐾 なかま ${S.pets.length}ひき</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><button data-a="back">つづける</button><button data-a="home">🏠 うまれた場所に もどる</button><button data-a="title">💾 セーブして タイトルへ</button></p>`, "pause");
   screen.querySelector('[data-a="back"]').onclick = closeMenu;
   screen.querySelector('[data-a="home"]').onclick = () => { closeMenu(); respawn(); toast("うまれた場所に もどった"); };
@@ -1054,7 +1229,7 @@ function starve() {
 function renderInfo() {
   const sunH = -Math.cos(S.dayTime*6.283), hr = Math.floor(S.dayTime*24);
   $("#who").textContent = `${JOBS[S.job].icon} ${S.name}（${S.age}さい）`;
-  $("#when").textContent = `${S.day}日目 ${sunH > 0 ? "☀️ ひる" : "🌙 よる"} ${hr}じ`;
+  $("#when").textContent = `${dateText(S.day)} ${sunH > 0 ? "☀️ ひる" : "🌙 よる"} ${hr}じ`;
   $("#hp").style.width = (S.hp / maxHP() * 100) + "%";
   const left = Math.max(0, STARVE_DAYS - S.hunger), hg = $("#hg");
   hg.style.width = (left / STARVE_DAYS * 100) + "%"; hg.style.background = left < 3 ? "#ff5050" : left < 5 ? "#ffb347" : "#7bd36b";
@@ -1072,6 +1247,8 @@ function save() {
 }
 setInterval(() => { if (running) save(); }, 20000);
 addEventListener("visibilitychange", () => { if (document.hidden && running) save(); });
+addEventListener("pagehide", () => { if (running) save(); });   // やめる（とじる）ときに じどうで セーブ
+addEventListener("beforeunload", () => { if (running) save(); });
 
 // ====== いえの なか（べつの へや） ======
 const INTERIOR = { hut:1, house:1, stonehouse:1, fhouse:1, mansion:1 };   // なかに はいれる たてもの
@@ -1184,7 +1361,7 @@ function updateInside(dt) {
 }
 
 // ====== ゲームの更新 ======
-const DAY_LEN = 360; // 1日 = 6分
+const DAY_LEN = 900; // 1日 = 15分
 const skyDay = new THREE.Color(0x8fd3ff), skyNight = new THREE.Color(0x0b1230), skyDusk = new THREE.Color(0xff9a6b), tmpC = new THREE.Color();
 let spawnT = 0, regenT = 0;
 function respawn() {
@@ -1208,7 +1385,7 @@ function pushOut(x, z, r, y, h, stand) {
 function newDay() {
   S.dayTime -= 1; S.day++; S.age++; S.hp = Math.min(maxHP(), S.hp + 4);
   toast(`🎂 おたんじょうび！ ${esc(S.name)} は ${S.age}さいに なった！`); if (S.age <= 18) toast("からだが すこし 大きくなった");
-  if (S.parent.stock < 3) { S.parent.stock++; toast("👩 おかあさんが ごはんを つくったよ。おうちで もらおう"); }
+  toast(`📅 ${dateText(S.day)}`); if (S.parent.stock < 3) { S.parent.stock++; toast("👩 おかあさんが ごはんを つくったよ。おうちで もらおう"); }
   let wool = 0, egg = 0; for (const p of S.pets) { if (p.kind === "sheep") wool++; if (p.kind === "chicken") egg++; }
   if (wool) gain("wool", wool, "🐑 "); if (egg) gain("egg", egg, "🐔 ");
   save();
@@ -1277,7 +1454,7 @@ function update(dt) {
     }
   }
   updateAnimals(dt);
-  updateParent(dt);
+  updateParent(dt); updateVillagers(dt);
   // HP しぜんかいふく
   P.hurtT -= dt; regenT += dt; if (regenT > 2) { regenT = 0; if (P.hurtT <= 0) S.hp = Math.min(maxHP(), S.hp + 1); }
 
@@ -1298,7 +1475,7 @@ function update(dt) {
     target = findTarget();
     const an = nearestWild(3.2);
     let h = !target ? "" : target.type === "enemy" ? "1：⚔️ かげまる を こうげき！"
-      : target.type === "parent" ? `1：👩 おかあさん と はなす${S.parent.stock ? "（🍱 ごはん できてる！）" : ""}`
+      : target.type === "villager" ? `1：${esc(target.v.d.name)} と はなす` : target.type === "parent" ? `1：👩 おかあさん と はなす${S.parent.stock ? "（🍱 ごはん できてる！）" : ""}`
       : `1：${OBJ_INFO[target.o.kind].name} を ${OBJ_INFO[target.o.kind].verb}`;
     if (an) h += (h ? "　" : "") + `7：${ANIMALS[an.kind].icon} ${ANIMALS[an.kind].name} を てなずける（🍓）`;
     const hb = nearestBuild(P.x, P.z, b => INTERIOR[b.type]);
@@ -1330,6 +1507,8 @@ function migrate() {
   S.hunger ??= 0; S.hw ??= Math.floor(S.hunger); S.pets ??= []; S.friendName ??= "ともだち"; S.friendAuto ??= true;
   if (isTouch) S.friendAuto = true;
   if (!S.parent) { const f = S.builds.find(b => b.type === "fire"); S.parent = { stock:1, x:(f ? f.x : S.spawn.x) + 2.5, z:f ? f.z : S.spawn.z - 4 }; }
+  S.st ??= {}; S.mDone ??= {};
+  if (!S.villagers) S.villagers = S.builds.filter(b => b.type === "house" && Math.hypot(b.x-S.spawn.x, b.z-S.spawn.z) < 30).map((b,i) => ({ name:VNAMES[i % VNAMES.length], hx:b.x, hz:b.z, gift:0 }));
   S.v = 2;
 }
 function startGame() {
@@ -1338,6 +1517,8 @@ function startGame() {
     const n = meta.gifts.length, icons = meta.gifts.map(g => g.icon).join("");
     for (const g of meta.gifts) {
       if (g.pet) { if (S.pets.length < MAX_PETS) S.pets.push({ kind:g.pet }); }
+      else if (g.tool) S.tools[g.tool] = true;
+      else if (g.coins) meta.coins += g.coins;
       else for (const [k,v] of Object.entries(g.give)) S.inv[k] = (S.inv[k]||0) + v;
     }
     meta.gifts = []; saveMeta();
@@ -1355,6 +1536,7 @@ function startGame() {
   const ml = labelSprite("👩 おかあさん", "#ffd6ec"); ml.position.y = 2.2; mom.g.add(ml);
   momFood = emojiSprite("🍱", .7); mom.g.add(momFood);
   MOM.x = MOM.tx = S.parent.x; MOM.z = MOM.tz = S.parent.z; MOM.y = groundAt(MOM.x, MOM.z) + .5;
+  spawnVillagers();
   S.pets.forEach((p,i) => spawnAnimal(p.kind, P.x + Math.cos(i*1.3)*3, P.z + Math.sin(i*1.3)*3, true));
   if (!S.hp || S.hp <= 0) S.hp = maxHP();
   closeMenu(); $("#hud").hidden = false; if (isTouch) $("#touch").hidden = false;
@@ -1363,18 +1545,19 @@ function startGame() {
 function createWorld(slot, name, friendName, job, home, enemiesOn) {
   const seed = (Math.random()*1e9) | 0;
   S = { v:2, slot, name, friendName, friendAuto:true, job, home, enemies:enemiesOn, seed, day:1, dayTime:.3, age:5, hp:0, hunger:0, hw:0, pets:[],
-        inv:{ ...DEF_INV, berry:3, gohan:1 }, tools:{}, removed:[], digs:{}, builds:[] };
+        inv:{ ...DEF_INV, berry:3, gohan:1 }, tools:{}, removed:[], digs:{}, builds:[], st:{}, mDone:{}, villagers:[] };
   if (job === "kikori") S.tools.axe = true;
   if (job === "koufu") S.tools.pick = true;
   if (job === "kenshi") S.tools.sword = true;
   if (job === "daiku") S.inv.wood = 10;
   initNoise(seed);
   const H = HOMES[home], sp = findLand(H.x, H.z); S.spawn = sp; S.p = { x:sp.x, y:baseH(sp.x,sp.z)+1, z:sp.z };
-  const spots = H.houses === 2 ? [[-9,-8],[9,-8]] : [[0,-9]];
+  const spots = SPOTS[H.houses];
   for (const [ox,oz] of spots) { const x = Math.round((sp.x+ox)/2)*2, z = Math.round((sp.z+oz)/2)*2; if (baseH(x,z) > .5) S.builds.push({ type:"house", x, z, rot:0 }); }
   const fx = Math.round(sp.x/2)*2, fz = Math.round((sp.z-4)/2)*2;
   S.builds.push({ type:"fire", x:fx, z:fz, rot:0 });
   S.parent = { stock:1, x:fx + 2.5, z:fz };
+  S.villagers = S.builds.filter(b => b.type === "house").map((b,i) => ({ name:VNAMES[(i + seed % 5) % VNAMES.length], hx:b.x, hz:b.z, gift:0 }));
   save(); startGame();
   toast(`${esc(name)} は ${H.name} で うまれた 5さいの ${JOBS[job].name}！ ともだちの ${esc(friendName)} も いっしょ！`);
   setTimeout(() => toast(isTouch ? "左がわを ドラッグで いどう・右がわを ドラッグで まわりを 見る" : "WASD で いどう・そうさは すうじキー 1〜9"), 1500);
@@ -1394,7 +1577,7 @@ function showTitle() {
     <h1 class="logo">${LOGO.map(([ch,c,c2,r], i) => `<span style="--c:${c};--c2:${c2};--r:${r}deg;--dl:${(-i*.35).toFixed(2)}s">${ch}</span>`).join("")}</h1>
     <p class="subt">（ぼうけんバージョン）</p>
     <div class="tbtns">
-      <button class="tbtn gacha" id="tGacha">🎰 ガチャ<small>🪙${GACHA_COST}で 1かい</small></button>
+      <button class="tbtn gacha" id="tGacha">🎰 ガチャ<small>🪙${GACHAS[1].cost}〜で ひける</small></button>
       <button class="tbtn start" id="tStart">▶ はじめる</button>
       <button class="tbtn up" id="tUp">⬆️ アップ<br>グレード</button>
     </div></div>`);
@@ -1402,26 +1585,46 @@ function showTitle() {
   $("#tGacha").onclick = () => showGacha(null);
   $("#tUp").onclick = showUpgrade;
 }
-function showGacha(result) {
-  const res = result
-    ? `<div class="gres pop r-${result.r}"><span class="rar r-${result.r}">${result.r}</span><div class="gic">${result.icon}</div><b>${result.name}</b><small class="note">つぎに あそぶ せかいで うけとれるよ 🎁</small></div>`
-    : `<div class="gres"><div class="gic">🎁</div><small class="note">🪙${GACHA_COST}で 1かい ひける</small></div>`;
-  titleScreen(`<div class="card"><h2>🎰 ガチャ</h2>${coinHTML("inl")}${res}
-    <p style="text-align:center"><button class="tbtn gacha" id="pull" style="padding:14px 40px" ${meta.coins < GACHA_COST ? "disabled" : ""}>1かい ひく<small>🪙${GACHA_COST}</small></button></p>
+function pullGacha(m) {
+  const free = m.free && Date.now() >= (meta.freeAt || 0);
+  if (m.free ? !free : meta.coins < m.cost) return null;
+  if (m.free) meta.freeAt = Date.now() + FREE_WAIT; else meta.coins -= m.cost;
+  let r = Math.random() * 100, idx = TIERS.length - 1;
+  for (let i = 0; i < m.w.length; i++) { if ((r -= m.w[i]) < 0) { idx = i; break; } }
+  if (meta.pity >= 9 && idx < 2) idx = 2;                       // 10かい ひいても 伝説いじょうが でない とき
+  meta.pity = idx >= 2 ? 0 : meta.pity + 1;
+  const tier = TIERS[idx], pool = GIFT_POOL[tier], item = pool[(Math.random() * pool.length) | 0];
+  let treasure = null; const tr = Math.random();                // ときどき コインの ふくろ・金銀財宝
+  if (tr < .04) treasure = { icon:"💎", name:"金銀財宝", coins: Math.round((300 + m.cost * 2) * coinRate()) };
+  else if (tr < .2) treasure = { icon:"🪙", name:"コインの ふくろ", coins: Math.round((20 + m.cost * .3) * coinRate()) };
+  if (treasure) meta.coins += treasure.coins;
+  meta.gifts.push({ icon:item.icon, name:item.name, give:item.give, pet:item.pet, tool:item.tool, coins:item.coins });
+  meta.pulls = (meta.pulls || 0) + 1; saveMeta();
+  return { tier, item, treasure };
+}
+function showGacha(res) {
+  const m = GACHAS[gSel], wait = Math.max(0, (meta.freeAt || 0) - Date.now()), freeOk = !!m.free && wait <= 0;
+  const can = m.free ? freeOk : meta.coins >= m.cost;
+  const resHTML = res
+    ? `<div class="gres pop r-${res.tier}"><span class="rar r-${res.tier}">${TIER[res.tier]}</span><div class="gic">${res.item.icon}</div><b>${res.item.name}</b>
+        ${res.treasure ? `<div class="treas">${res.treasure.icon} ${res.treasure.name}！ 🪙+${res.treasure.coins}</div>` : ""}
+        <small class="note">つぎに あそぶ せかいで うけとれるよ 🎁</small></div>`
+    : `<div class="gres"><div class="gic">${m.icon}</div><small class="note">${m.desc || `🪙${m.cost}で 1かい ひける`}</small></div>`;
+  titleScreen(`<div class="card"><h2>🎰 ガチャ</h2>${coinHTML("inl")}
+    <div class="opts">${GACHAS.map((g,i) => `<button class="opt${i === gSel ? " sel" : ""}" data-gs="${i}"><span class="ic">${g.icon}</span><b>${g.name}</b><small>${g.free ? "むりょう（30ぷんに1かい）" : `🪙${g.cost}`}</small></button>`).join("")}</div>
+    ${resHTML}
+    <p style="text-align:center"><button class="tbtn gacha" id="pull" style="padding:14px 40px" ${can ? "" : "disabled"}>1かい ひく<small>${m.free ? (freeOk ? "むりょう" : `あと ${Math.ceil(wait/60000)}ぷん`) : `🪙${m.cost}`}</small></button></p>
+    <h3>でる もの（レア度の 出やすさ）</h3><p class="note" style="line-height:2">${TIERS.map((t,i) => `<span class="rar sm r-${t}">${TIER[t]}</span>${m.w[i]}%`).join("　")}</p>
+    <p class="note">🪙 ときどき コインの ふくろ・金銀財宝も でるよ<br>10かい ひいても 伝説いじょうが でない と、つぎは かならず 出るよ（あと ${Math.max(0, 9 - meta.pity)}かい）</p>
     <p class="note">🎁 うけとりまち：${meta.gifts.length ? meta.gifts.map(g => g.icon).join(" ") : "なし"}</p>
-    <h3>でるもの</h3><p class="note" style="line-height:2">${GACHA.map(g => `${g.icon}<span class="rar sm r-${g.r}">${g.r}</span>`).join("")}</p>
-    <p class="note">🪙 コインは かげまるを たおすと +10・木や石を とると +1</p>
     <p><button id="back">← タイトル</button></p></div>`);
   $("#back").onclick = showTitle;
+  screen.querySelectorAll("[data-gs]").forEach(b => b.onclick = () => { gSel = +b.dataset.gs; showGacha(null); });
   $("#pull").onclick = () => {
-    if (meta.coins < GACHA_COST) return;
-    meta.coins -= GACHA_COST;
-    let r = Math.random() * GACHA.reduce((s,g) => s + g.w, 0), pick = GACHA[0];
-    for (const g of GACHA) { if ((r -= g.w) < 0) { pick = g; break; } }
-    meta.gifts.push({ icon:pick.icon, name:pick.name, give:pick.give, pet:pick.pet }); saveMeta();
+    const r = pullGacha(GACHAS[gSel]); if (!r) return;
     const box = screen.querySelector(".gres"); box.className = "gres spin"; box.innerHTML = `<div class="gic">🎁</div><b>なにが でるかな…？</b>`;
     $("#pull").disabled = true;
-    setTimeout(() => showGacha(pick), 1000);
+    setTimeout(() => showGacha(r), 900);
   };
 }
 function showUpgrade() {
@@ -1443,7 +1646,7 @@ function showSlots() {
   for (let i=0; i<SLOTS; i++) {
     const d = store.get(slotKey(i));
     html += d ? `<div class="slot"><div style="font-size:32px">${JOBS[d.job]?.icon || "🙂"}</div><div class="grow"><b>${esc(d.name)}${d.friendName ? ` ＆ ${esc(d.friendName)}` : ""}</b>
-        <small>${JOBS[d.job]?.name}・${HOMES[d.home]?.icon}${HOMES[d.home]?.name}・${d.age}さい・${d.day}日目・敵${d.enemies ? "あり" : "なし"}</small></div>
+        <small>${JOBS[d.job]?.name}・${HOMES[d.home]?.icon}${HOMES[d.home]?.name}・${d.age}さい・${dateText(d.day)}・敵${d.enemies ? "あり" : "なし"}</small></div>
         <button data-play="${i}" class="big" style="font-size:15px;padding:8px 16px">あそぶ</button><button data-del="${i}" title="けす">🗑️</button></div>`
       : `<div class="slot empty"><div style="font-size:32px">✨</div><div class="grow"><b>からっぽ</b><small>せかい ${i+1}</small></div><button data-new="${i}">＋ あたらしい せかい</button></div>`;
   }
