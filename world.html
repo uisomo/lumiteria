@@ -150,6 +150,7 @@
     <b>1</b> アクション（きる・ほる・こうげき・はなす）　<b>2</b> ほる　<b>3</b> たべる<br>
     <b>4</b> もちもの　<b>5</b> クラフト　<b>6</b> たてる　<b>7</b> てなずける<br>
     <b>8</b> まわす　<b>9</b> ともだち じどう⇔てうごき　Esc：メニュー<br>
+    <b>E</b> いえの なかに はいる・でる<br>
     <b>ともだち（てうごき）</b> やじるしキー：いどう　Enter：アクション　右Shift：ジャンプ
   </div>
 </div>
@@ -157,7 +158,7 @@
   <div id="stickZone"><div id="stick"><i></i></div></div>
   <div id="tbtns">
     <button data-k="eat">🍓<small>3 たべる</small></button><button data-k="dig">🕳️<small>2 ほる</small></button><button data-k="jump">⬆️<small>ジャンプ</small></button>
-    <button data-k="tame">🐾<small>7 なかま</small></button><button data-k="rot">🔄<small>8 まわす</small></button><button data-k="act">✊<small>1 アクション</small></button>
+    <button data-k="tame">🐾<small>7 なかま</small></button><button data-k="rot">🔄<small>8 まわす</small></button><button data-k="door">🚪<small>E はいる</small></button><button data-k="act">✊<small>1 アクション</small></button>
   </div>
 </div>
 <div id="screen" class="overlay"></div>
@@ -790,6 +791,8 @@ function toggleFriend() {
 // ====== おかあさん ======
 function updateParent(dt) {
   const H = S.parent; MOM.t -= dt;
+  if (momHome()) { mom.g.visible = false; return; }   // おうちに いる（そとには でない）
+  mom.g.visible = true;
   let mx = 0, mz = 0;
   if (Math.hypot(P.x-MOM.x, P.z-MOM.z) < 4) faceTo(MOM, P);
   else {
@@ -837,9 +840,10 @@ addEventListener("keydown", e => {
   if (e.code === "Escape") { if (menuOpen) { if (menuKind !== "dead") closeMenu(); } else if (buildMode) setBuild(null); else openPause(); return; }
   const m = e.code.match(/^(?:Digit|Numpad)([1-9])$/), n = m ? +m[1] : 0;
   if (menuOpen) { if (n && MENU_KEY[n] === menuKind) closeMenu(); return; }
-  if (n && !e.repeat) NUMACT[n]();
-  if (e.code === "Space") jump();
-  if (!S.friendAuto) { if (e.code === "Enter") friendAct(); if (e.code === "ShiftRight") friendJump(); }
+  if (e.code === "KeyE") { if (!e.repeat) toggleDoor(); return; }
+  if (n && !e.repeat) { if (!inside) NUMACT[n](); else if (n === 1) insideAct(); else if ([3,4,5].includes(n)) NUMACT[n](); }
+  if (e.code === "Space" && !inside) jump();
+  if (!S.friendAuto && !inside) { if (e.code === "Enter") friendAct(); if (e.code === "ShiftRight") friendJump(); }
 });
 addEventListener("keyup", e => keys[e.code] = false);
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
@@ -853,14 +857,15 @@ addEventListener("pointermove", e => {
     joy.dx = dx/50; joy.dy = dy/50; $("#stick i").style.transform = `translate(${dx}px,${dy}px)`; }
 });
 addEventListener("pointerup", e => {
-  if (drag && e.pointerId === drag.id) { if (!drag.moved && running && !menuOpen && !isTouch) act(); drag = null; }
+  if (drag && e.pointerId === drag.id) { if (!drag.moved && running && !menuOpen && !isTouch && !inside) act(); drag = null; }
   if (joy && e.pointerId === joy.id) { joy = null; $("#stick").style.display = "none"; }
 });
 cv.addEventListener("wheel", e => { camDist = clamp(camDist + e.deltaY*.01, 3.5, 18); }, { passive:true });
 $("#stickZone").addEventListener("pointerdown", e => { joy = { sx:e.clientX, sy:e.clientY, dx:0, dy:0, id:e.pointerId };
   const s = $("#stick"); s.style.display = "block"; s.style.left = e.clientX+"px"; s.style.top = e.clientY+"px"; $("#stick i").style.transform = ""; });
 document.querySelectorAll("#tbtns button").forEach(b => b.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation();
-  if (menuOpen) return; ({ act, dig, jump, eat:() => eat(), tame, rot:rotateBuild })[b.dataset.k](); }));
+  if (menuOpen) return; if (inside && !(["eat","door","act"].includes(b.dataset.k))) return;
+  ({ act:() => (inside ? insideAct() : act()), dig, jump, eat:() => eat(), tame, rot:rotateBuild, door:toggleDoor })[b.dataset.k](); }));
 $("#bBag").onclick = () => !menuOpen && openBag();
 $("#bCraft").onclick = () => !menuOpen && openCraft();
 $("#bBuild").onclick = () => !menuOpen && openBuild();
@@ -874,7 +879,7 @@ function findTarget() {
   let best = null, bd = 1e9;
   for (const e of enemies) { const d = Math.hypot(e.x-P.x, e.z-P.z); if (d < 2.8 && d < bd) { bd = d; best = { type:"enemy", e }; } }
   if (best) return best;
-  if (mom && Math.hypot(MOM.x-P.x, MOM.z-P.z) < 2.6) return { type:"parent" };
+  if (mom && mom.g.visible && Math.hypot(MOM.x-P.x, MOM.z-P.z) < 2.6) return { type:"parent" };
   nearObjs(P.x, P.z, o => { const d = Math.hypot(o.x-P.x, o.z-P.z) - o.r; if (d < 1.4 && d < bd) { bd = d; best = { type:"obj", o }; } });
   return best;
 }
@@ -1061,18 +1066,129 @@ function renderInfo() {
 // ====== セーブ ======
 function save() {
   if (!S) return;
-  S.p = { x:P.x, y:P.y, z:P.z };
+  S.p = inside ? { x:outsideSpot.x, y:outsideSpot.y, z:outsideSpot.z } : { x:P.x, y:P.y, z:P.z };
   const data = { ...S, builds: S.builds.map(({ type,x,z,rot }) => ({ type,x,z,rot })) };
   if (!store.set(slotKey(S.slot), data)) toast("⚠️ セーブできなかった");
 }
 setInterval(() => { if (running) save(); }, 20000);
 addEventListener("visibilitychange", () => { if (document.hidden && running) save(); });
 
+// ====== いえの なか（べつの へや） ======
+const INTERIOR = { hut:1, house:1, stonehouse:1, fhouse:1, mansion:1 };   // なかに はいれる たてもの
+const ROOM = { hw:4, hd:4, h:3.2 };                                       // へやの 半分の はば・おく行き・たかさ
+const inScene = new THREE.Scene(); inScene.background = new THREE.Color(0xf3e6cf);
+inScene.add(new THREE.AmbientLight(0xfff4e0, .8));
+const inSun = new THREE.DirectionalLight(0xffffff, .5); inSun.position.set(2, 6, 3); inScene.add(inSun);
+const inLamp = new THREE.PointLight(0xffc27a, 18, 14, 1.2); inLamp.position.set(0, ROOM.h - .6, 0); inScene.add(inLamp);
+const RM = { floor:Lam(0xc8925a), wall:Lam(0xf3e6cf), ceil:Lam(0xfaf3e6), rug:Lam(0xc0392b), bed:Lam(0x5dade2), sheet:Lam(0xffffff),
+  wood:Lam(0x8b5a2b), dark:Lam(0x3e2a1a), shelf:Lam(0xa0744a), green:Lam(0x27ae60), gold:Lam(0xf1c40f), stone:Lam(0x9a9a9a), door:Lam(0x6b4423) };
+const roomCache = {};
+let inside = null, inCols = [], outCols = null, outsideSpot = null;
+function roomPart(g, cols, w, h, d, mat, x, y, z, solid=false) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y + h/2, z);
+  m.castShadow = true; m.receiveShadow = true; g.add(m);
+  if (solid) cols.push({ minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, minY:y, maxY:y+h });
+}
+function buildRoom(type) {
+  const g = new THREE.Group(), cols = [], { hw, hd, h } = ROOM, put = (...a) => roomPart(g, cols, ...a);
+  put(hw*2, .2, hd*2, RM.floor, 0, -.2, 0);                 // ゆか
+  put(hw*2, .2, hd*2, RM.ceil, 0, h, 0);                    // てんじょう
+  put(hw*2, h, .2, RM.wall, 0, 0, -hd);                     // おくの かべ
+  put(.2, h, hd*2, RM.wall, -hw, 0, 0);                     // ひだりの かべ
+  put(.2, h, hd*2, RM.wall, hw, 0, 0);                      // みぎの かべ
+  put(hw-1, h, .2, RM.wall, -(hw+1)/2, 0, hd);              // 入口の ひだり
+  put(hw-1, h, .2, RM.wall, (hw+1)/2, 0, hd);               // 入口の みぎ
+  put(2, h-2.4, .2, RM.wall, 0, 2.4, hd);                   // 入口の うえ
+  put(3.2, .03, 2.4, RM.rug, 0, 0, .3);                     // ゆうたん
+  put(1.8, .5, 2.4, RM.bed, -2.6, 0, -2.8, true);           // ベッド
+  put(1.7, .15, 2.2, RM.sheet, -2.6, .5, -2.8);             // シーツ
+  put(1.6, .9, 1.2, RM.wood, 2.4, 0, -2.4, true);           // テーブル
+  put(1.6, .1, 1.2, RM.shelf, 2.4, .9, -2.4);               // テーブルの うえ
+  put(.6, 2, 1.6, RM.shelf, 3.4, 0, 0, true);               // たなと ほんだな
+  put(.4, .5, 1.2, RM.gold, 3.4, 2, 0);
+  put(.8, .8, .8, RM.dark, -3.2, 0, 2.6, true);             // はちの だい
+  put(1, .9, 1, RM.green, -3.2, .8, 2.6);                   // しょくぶつ
+  if (type === "stonehouse") put(2.4, 1.6, .8, RM.stone, 0, 0, -3.6, true);   // いろり
+  if (type === "mansion") {
+    put(1.2, .1, 1.2, RM.gold, 0, h - .6, 0);                // シャンデリア
+    put(2.4, .6, .9, RM.bed, 0, 0, 2.6, true);              // ソファ
+    put(1.6, .03, 1.6, RM.gold, 0, 0, -1);                  // きんの ゆうたん
+  }
+  const door = emojiSprite("🚪", .9); door.position.set(0, 1.4, hd - .5); g.add(door);
+  const nm = labelSprite(BUILDS[type]?.name ?? "いえ", "#fff3d6"); nm.position.set(0, 2.7, -hd + .6); g.add(nm);
+  g.userData.cols = cols;
+  return g;
+}
+// おかあさんは いつも おうち（いちばん ちかい いえ）に いる
+function momHome() {
+  let best = null, bd = 16;
+  for (const b of S.builds) if (INTERIOR[b.type]) { const d = Math.hypot(b.x-S.parent.x, b.z-S.parent.z); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
+function nearMomInside() { return !!inside && inside === momHome() && Math.hypot(P.x-mom.g.position.x, P.z-mom.g.position.z) < 3.2; }
+function insideAct() { if (nearMomInside()) openParent(); }
+function roomFor(type) {
+  if (!roomCache[type]) { roomCache[type] = buildRoom(type); inScene.add(roomCache[type]); roomCache[type].visible = false; }
+  return roomCache[type];
+}
+function enterHouse(b) {
+  outsideSpot = { x:P.x, y:P.y, z:P.z, face:P.face, yaw };
+  outCols = colliders; inCols = roomFor(b.type).userData.cols; colliders = inCols;
+  inside = b; const room = roomFor(b.type); room.visible = true;
+  scene.remove(hero.g); inScene.add(hero.g);
+  P.x = 0; P.z = ROOM.hd - 1.8; P.y = 0; P.vy = 0; P.face = Math.PI; P.onGround = true; P.swim = false;
+  yaw = Math.PI; pitch = .4;
+  if (b === momHome()) { inScene.add(mom.g); mom.g.visible = true; mom.g.position.set(-.8, 0, .4); mom.g.rotation.y = Math.atan2(P.x+.8, P.z-.4); }
+  toast(`🏠 ${BUILDS[b.type].name} の なかに はいった`);
+}
+function exitHouse() {
+  if (!inside) return;
+  roomCache[inside.type].visible = false; inside = null;
+  inScene.remove(hero.g); scene.add(hero.g); scene.add(mom.g);
+  colliders = outCols; outCols = null;
+  const o = outsideSpot; P.x = o.x; P.z = o.z; P.y = groundAt(o.x, o.z); P.vy = 0; P.face = o.face; P.onGround = true; yaw = o.yaw;
+  placeFriendNear();
+  toast("そとに でた");
+}
+function nearDoor() { return inside && Math.hypot(P.x, P.z - ROOM.hd) < 2.4; }
+function toggleDoor() {
+  if (!running || menuOpen) return;
+  if (inside) { if (nearDoor()) exitHouse(); else toast("ドアの ちかくで E を おそう"); return; }
+  if (buildMode) return toast("たてるモードを やめてから はいってね");
+  const b = nearestBuild(P.x, P.z, b => INTERIOR[b.type]);
+  if (!b || Math.hypot(b.x-P.x, b.z-P.z) > 5) return toast("いえの ちかくで E を おそう");
+  enterHouse(b);
+}
+function updateInside(dt) {
+  let ix = 0, iz = 0;
+  if (keys.KeyW || (S.friendAuto && keys.ArrowUp)) iz++; if (keys.KeyS || (S.friendAuto && keys.ArrowDown)) iz--;
+  if (keys.KeyD || (S.friendAuto && keys.ArrowRight)) ix++; if (keys.KeyA || (S.friendAuto && keys.ArrowLeft)) ix--;
+  if (joy) { ix += joy.dx; iz -= joy.dy; }
+  const il = Math.hypot(ix, iz); if (il > 1) { ix /= il; iz /= il; }
+  const [fx, fz] = camForward(), rx = -fz, rz = fx;
+  const mx = fx*iz + rx*ix, mz = fz*iz + rz*ix;
+  const speed = 4 * (1 + meta.up.spd*.08) * (keys.ShiftLeft ? 1.6 : 1);
+  let nx = P.x + mx*speed*dt, nz = P.z + mz*speed*dt;
+  const moving = Math.hypot(mx, mz) > .05;
+  if (moving) { const want = Math.atan2(mx, mz); let d = want - P.face; d = Math.atan2(Math.sin(d), Math.cos(d)); P.face += d*Math.min(1, dt*12); }
+  [nx, nz] = pushOut(nx, nz, .35, 0, 1.8, false);
+  P.x = clamp(nx, -ROOM.hw+.5, ROOM.hw-.5); P.z = clamp(nz, -ROOM.hd+.5, ROOM.hd-.5);
+  P.y = 0; P.vy = 0; P.onGround = true; P.walkT += dt * (moving ? speed*2.2 : 0);
+  animHuman(hero, P, moving, ageScale(), dt);
+  const tgt = new THREE.Vector3(P.x, 1.2*ageScale(), P.z), cd = 6;
+  camera.position.set(
+    clamp(tgt.x + Math.sin(yaw)*Math.cos(pitch)*cd, -ROOM.hw+.3, ROOM.hw-.3), clamp(tgt.y + Math.sin(pitch)*cd, .4, ROOM.h-.3),
+    clamp(tgt.z + Math.cos(yaw)*Math.cos(pitch)*cd, -ROOM.hd+.3, ROOM.hd-.3));
+  camera.lookAt(tgt);
+  $("#hint").innerHTML = nearMomInside() ? "1：👩 おかあさん と はなす" : nearDoor() ? "E：そとに でる" : "🚪 いりぐちの ドアの ちかくで E：そとへ";
+}
+
 // ====== ゲームの更新 ======
 const DAY_LEN = 360; // 1日 = 6分
 const skyDay = new THREE.Color(0x8fd3ff), skyNight = new THREE.Color(0x0b1230), skyDusk = new THREE.Color(0xff9a6b), tmpC = new THREE.Color();
 let spawnT = 0, regenT = 0;
 function respawn() {
+  if (inside) exitHouse();
   P.x = S.spawn.x; P.z = S.spawn.z; P.y = groundAt(P.x,P.z) + 1; P.vy = 0; S.hp = maxHP();
   for (const e of [...enemies]) killEnemy(e, false);
   placeFriendNear();
@@ -1105,6 +1221,7 @@ function update(dt) {
   const hd = Math.floor(S.hunger);
   if (hd > (S.hw||0)) { S.hw = hd; if (hd >= 5 && hd < STARVE_DAYS) toast(`🍙 おなかが すいた… あと ${STARVE_DAYS-hd}日 たべないと たおれちゃう！<br>おうちで おかあさんに ごはんを もらおう`); }
   if (S.hunger >= STARVE_DAYS) return starve();
+  if (inside) return updateInside(dt);
   const sc = ageScale(), manualF = !S.friendAuto;
 
   // いどう（ともだちが てうごきの ときは やじるしキーは ともだち用）
@@ -1184,6 +1301,8 @@ function update(dt) {
       : target.type === "parent" ? `1：👩 おかあさん と はなす${S.parent.stock ? "（🍱 ごはん できてる！）" : ""}`
       : `1：${OBJ_INFO[target.o.kind].name} を ${OBJ_INFO[target.o.kind].verb}`;
     if (an) h += (h ? "　" : "") + `7：${ANIMALS[an.kind].icon} ${ANIMALS[an.kind].name} を てなずける（🍓）`;
+    const hb = nearestBuild(P.x, P.z, b => INTERIOR[b.type]);
+    if (!h && hb && Math.hypot(hb.x-P.x, hb.z-P.z) < 5) h = "E：いえの なかに はいる";
     if (!h) h = P.swim ? "🏊 およいでいる（スペースで うく）" : "2：じめんを ほる　3：たべる　4：もちもの";
     $("#hint").innerHTML = h;
   }
@@ -1200,7 +1319,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, (now - last)/1000); last = now;
   if (running && !menuOpen) update(dt);
-  if (running) renderer.render(scene, camera);
+  if (running) renderer.render(inside ? inScene : scene, camera);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
