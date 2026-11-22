@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ぼうけんのせかい</title>
+<style>
+  :root { --line:#f4f1fb; --accent:#ffd34d; --panel:rgba(22,20,34,.88); --btn:#3a3358; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0b1230; color:var(--line); touch-action:none;
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif; user-select:none; -webkit-user-select:none; }
+  canvas { display:block; width:100vw; height:100vh; }
+  [hidden] { display:none !important; }
+  button { font:inherit; color:var(--line); background:var(--btn); border:2px solid #8a80b0; border-radius:10px; padding:8px 14px; cursor:pointer; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.4; cursor:default; color:var(--line); border-color:#8a80b0; }
+  button.big { font-size:18px; font-weight:bold; padding:12px 28px; border:3px solid var(--line); color:var(--accent); }
+  .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(5,8,25,.55); overflow:auto; }
+  .card { background:var(--panel); border:3px solid var(--line); border-radius:16px; padding:20px; width:100%; max-width:560px; max-height:100%; overflow:auto; }
+  .card h1 { margin:0 0 4px; text-align:center; color:var(--accent); letter-spacing:.08em; font-size:28px; }
+  .card h2 { margin:0 0 10px; color:var(--accent); font-size:20px; }
+  .card h3 { margin:16px 0 8px; font-size:15px; opacity:.9; }
+  .sub { text-align:center; opacity:.85; margin:0 0 16px; font-size:14px; }
+  .slot { display:flex; align-items:center; gap:10px; background:#2a2440; border:2px solid #6a5f8f; border-radius:12px; padding:12px; margin:10px 0; }
+  .slot .grow { flex:1; } .slot small { opacity:.8; display:block; margin-top:3px; }
+  .slot.empty { border-style:dashed; opacity:.9; }
+  .opts { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; }
+  .opt { text-align:left; padding:10px; border-radius:12px; background:#2a2440; border:2px solid #6a5f8f; }
+  .opt .ic { font-size:28px; display:block; } .opt b { display:block; margin:2px 0; } .opt small { opacity:.8; font-size:11px; line-height:1.4; display:block; }
+  .opt.sel { border-color:var(--accent); background:#433a66; color:var(--line); box-shadow:0 0 0 2px var(--accent) inset; }
+  input[type=text] { font:inherit; font-size:18px; width:100%; padding:10px; border-radius:10px; border:2px solid #8a80b0; background:#14121f; color:var(--line); }
+  .row { display:flex; gap:8px; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #3c3558; }
+  .row .ic { font-size:26px; width:36px; text-align:center; } .row .grow { flex:1; } .row small { display:block; opacity:.75; font-size:12px; }
+  .cost { font-size:12px; opacity:.9; } .cost .no { color:#ff8080; }
+  /* HUD */
+  #hud { position:fixed; inset:0; pointer-events:none; }
+  #info { position:absolute; left:12px; top:12px; padding:10px 14px; background:var(--panel); border-radius:12px; border:2px solid #6a5f8f; min-width:190px; }
+  #who { font-weight:bold; } #when { font-size:13px; opacity:.9; margin:2px 0 6px; }
+  .hpbar { height:10px; background:#3a1c26; border-radius:6px; overflow:hidden; } .hpbar i { display:block; height:100%; background:linear-gradient(90deg,#ff6b6b,#ff9f6b); width:100%; transition:width .2s; }
+  #tools { font-size:20px; margin-top:6px; min-height:4px; letter-spacing:4px; }
+  #hotbar { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); display:flex; gap:6px; pointer-events:auto; }
+  .slotitem { width:56px; height:56px; background:var(--panel); border:2px solid #6a5f8f; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:22px; position:relative; padding:0; }
+  .slotitem span { font-size:11px; } .slotitem b { position:absolute; right:4px; top:2px; font-size:12px; color:var(--accent); }
+  #hint { position:absolute; left:50%; bottom:80px; transform:translateX(-50%); background:var(--panel); padding:6px 14px; border-radius:20px; font-size:14px; white-space:nowrap; }
+  #toasts { position:absolute; left:50%; top:28%; transform:translateX(-50%); width:max-content; max-width:calc(100vw - 32px); display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .toast { background:var(--panel); border:2px solid var(--accent); padding:8px 16px; border-radius:20px; font-size:15px; animation:tin .3s; text-align:center; }
+  @keyframes tin { from { opacity:0; transform:translateY(-10px); } }
+  #hurt { position:absolute; inset:0; box-shadow:inset 0 0 120px rgba(255,0,0,.7); opacity:0; transition:opacity .3s; }
+  #topbtns { position:absolute; right:12px; top:12px; display:flex; flex-direction:column; align-items:flex-end; gap:6px; pointer-events:auto; }
+  @media (max-width:900px) { #help { display:none; } }
+  @media (max-width:520px) { #info { min-width:0; max-width:52vw; font-size:13px; } #hotbar { gap:3px; } .slotitem { width:44px; height:48px; font-size:18px; } }
+  .slot .grow { min-width:0; } .slot button { white-space:nowrap; }
+  #help { position:absolute; left:12px; bottom:12px; font-size:12px; line-height:1.6; background:var(--panel); padding:8px 12px; border-radius:10px; opacity:.85; }
+  /* タッチ操作 */
+  #touch { position:fixed; inset:0; pointer-events:none; }
+  #stickZone { position:absolute; left:0; bottom:0; width:45%; height:50%; pointer-events:auto; }
+  #stick { position:absolute; width:120px; height:120px; margin:-60px; border-radius:50%; border:3px solid rgba(255,255,255,.4); display:none; }
+  #stick i { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.45); }
+  #tbtns { position:absolute; right:12px; bottom:84px; display:grid; grid-template-columns:repeat(3,62px); gap:8px; pointer-events:auto; }
+  #tbtns button { height:62px; padding:0; font-size:22px; border-radius:50%; background:rgba(40,34,64,.8); }
+  #tbtns button small { display:block; font-size:10px; }
+  @media (pointer:coarse) { #help { display:none; } #hint { bottom:160px; } #hotbar { bottom:8px; } .slotitem { width:48px; height:48px; } }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud" hidden>
+  <div id="info"><div id="who"></div><div id="when"></div><div class="hpbar"><i id="hp"></i></div><div id="tools"></div></div>
+  <div id="topbtns"><button id="bCraft">🔨 クラフト</button><button id="bBuild">🏠 たてる</button><button id="bMenu">≡</button></div>
+  <div id="hint"></div>
+  <div id="hotbar"></div>
+  <div id="toasts"></div>
+  <div id="hurt"></div>
+  <div id="help">WASD：いどう　Shift：はしる　スペース：ジャンプ<br>マウスをドラッグ：まわりを見る　ホイール：ズーム<br>E / クリック：きる・ほる・こうげき　F：じめんをほる<br>C：クラフト　B：たてる　Q：たべる　Esc：メニュー</div>
+</div>
+<div id="touch" hidden>
+  <div id="stickZone"><div id="stick"><i></i></div></div>
+  <div id="tbtns">
+    <button data-k="eat">🍓<small>たべる</small></button><button data-k="dig">🕳️<small>ほる</small></button><button data-k="jump">⬆️<small>ジャンプ</small></button>
+    <button data-k="rot">🔄<small>まわす</small></button><button data-k="act" style="grid-column:span 2;border-radius:31px">✊<small>アクション</small></button>
+  </div>
+</div>
+<div id="screen" class="overlay"></div>
+
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from "three";
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const smooth = (a,b,v) => { const t = clamp((v-a)/(b-a),0,1); return t*t*(3-2*t); };
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch(e) { return null; } },
+  set(k,v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch(e) {} },
+};
+const SLOTS = 3, slotKey = i => "boken-world-" + i;
+const isTouch = matchMedia("(pointer:coarse)").matches;
+
+// ====== データ ======
+const JOBS = {
+  kikori: { name:"きこり", icon:"🪓", color:0xc0392b, desc:"木を たくさん あつめられる。石のおのを もって スタート" },
+  koufu:  { name:"こうふ", icon:"⛏️", color:0xe67e22, desc:"石や てつを たくさん ほれる。つるはしを もって スタート" },
+  daiku:  { name:"だいく", icon:"🔨", color:0xf1c40f, desc:"たてものを はんぶんの ざいりょうで つくれる。木10こ もって スタート" },
+  kenshi: { name:"けんし", icon:"🗡️", color:0x2e6bd1, desc:"HPが おおくて つよい。石のけんを もって スタート" },
+};
+const HOMES = {
+  mori: { name:"森の村",     icon:"🌳", x:-150, z:10,  desc:"大きな森の なかの 村。木が たくさん", houses:2 },
+  umi:  { name:"海辺の町",   icon:"🏖️", x:20,   z:150, desc:"海の そばの 町。すなはまが ひろがる", houses:2 },
+  yama: { name:"山のふもと", icon:"⛰️", x:-10,  z:-95, desc:"高い山の ちかく。石や てつが ほれる", houses:1 },
+  yuki: { name:"雪の里",     icon:"❄️", x:160,  z:-10, desc:"雪が つもる しずかな 里", houses:2 },
+};
+const ITEMS = { wood:["🪵","木"], stone:["🪨","石"], iron:["🔩","てつ"], soil:["🟫","つち"], berry:["🍓","いちご"], jam:["🍯","ジャム"], campfire:["🔥","たき火"] };
+const TOOLS = { axe:"🪓", pick:"⛏️", sword:"🗡️", isword:"⚔️" };
+const RECIPES = [
+  { id:"axe",   name:"石のおの",    icon:"🪓", cost:{wood:4, stone:3}, tool:true, desc:"木が はやく きれる" },
+  { id:"pick",  name:"つるはし",    icon:"⛏️", cost:{wood:5, stone:3}, tool:true, desc:"石が はやく ほれる・てつが ほれる" },
+  { id:"sword", name:"石のけん",    icon:"🗡️", cost:{wood:3, stone:5}, tool:true, desc:"こうげき アップ" },
+  { id:"isword",name:"てつのけん",  icon:"⚔️", cost:{wood:2, iron:4},  tool:true, desc:"こうげき 大アップ" },
+  { id:"campfire", name:"たき火",   icon:"🔥", cost:{wood:6, stone:3}, desc:"「たてる」で おける。よるを あかるく てらす" },
+  { id:"jam",   name:"いちごジャム", icon:"🍯", cost:{berry:3},         desc:"たべると HPが 大きく かいふく" },
+];
+const BUILDS = {
+  house: { name:"ちいさな家", icon:"🏠", cost:{wood:24, stone:8}, desc:"ゆか・かべ・ドア・やねが ぜんぶ ついた家" },
+  floor: { name:"ゆか",       icon:"🟫", cost:{wood:3} },
+  wall:  { name:"木のかべ",   icon:"🪵", cost:{wood:4} },
+  swall: { name:"石のかべ",   icon:"🧱", cost:{stone:4} },
+  roof:  { name:"やね",       icon:"🔺", cost:{wood:4}, desc:"かべの 上に のる 高さ" },
+  door:  { name:"ドア",       icon:"🚪", cost:{wood:2}, desc:"とおりぬけ できる" },
+  fire:  { name:"たき火",     icon:"🔥", cost:{campfire:1}, fixed:true, desc:"クラフトで つくった たき火を おく" },
+  raise: { name:"つちをもる", icon:"⛰️", cost:{soil:1}, fixed:true, desc:"じめんを たかくする" },
+  remove:{ name:"こわす",     icon:"💥", cost:{}, fixed:true, desc:"たてものを こわして ざいりょうを 半分 もどす" },
+};
+
+// ====== 乱数とノイズ ======
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let perm;
+function initNoise(seed) { const r = rng(seed); const p = [...Array(256).keys()]; for (let i=255;i>0;i--) { const j = r()*(i+1)|0; [p[i],p[j]] = [p[j],p[i]]; } perm = new Uint8Array(512); for (let i=0;i<512;i++) perm[i] = p[i&255]; }
+function hash(x,z) { return perm[(perm[x & 255] + (z & 255)) & 511] / 255; }
+function vnoise(x,z) { const xi = Math.floor(x), zi = Math.floor(z), xf = x-xi, zf = z-zi, u = xf*xf*(3-2*xf), v = zf*zf*(3-2*zf);
+  const a = hash(xi,zi), b = hash(xi+1,zi), c = hash(xi,zi+1), d = hash(xi+1,zi+1); return a + (b-a)*u + (c-a)*v + (a-b-c+d)*u*v; }
+function fbm(x,z,oct=4) { let s=0, amp=1, f=1, t=0; for (let i=0;i<oct;i++) { s += vnoise(x*f + i*31.7, z*f + i*17.3)*amp; t += amp; amp *= .5; f *= 2; } return s/t; }
+
+function baseH(x,z) {
+  let h = 2.5 + (fbm(x*.012, z*.012) - .5) * 11;
+  h += smooth(-70,-210,z) * (6 + fbm(x*.025+50, z*.025, 5) * 46);   // 北の山
+  h += smooth(110,220,x) * (3 + fbm(x*.03, z*.03+80) * 10);          // 東の雪の丘
+  h -= smooth(120,215,z) * 16;                                       // 南の海
+  h -= smooth(240,295,Math.hypot(x,z)) * 25;                         // 世界のはしは海
+  return h;
+}
+function biome(x,z,h) { if (h < .9) return "beach"; if (x > 125) return "snow"; if (z < -80) return "mountain"; if (x < -45) return "forest"; return "plains"; }
+
+// ====== 3D の準備 ======
+const renderer = new THREE.WebGLRenderer({ canvas:$("#cv"), antialias:true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, 1, .1, 600);
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x4a6a3a, .6); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2dd, 1.1); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left:-40, right:40, top:40, bottom:-40, near:1, far:200 });
+sun.shadow.bias = -0.0005; scene.add(sun, sun.target);
+scene.fog = new THREE.Fog(0x8fd3ff, 70, 230);
+const Lam = c => new THREE.MeshLambertMaterial({ color:c });
+
+// ====== ゲーム状態 ======
+let S = null;               // セーブデータ
+let running = false, menuOpen = false;
+const SEG = 300, SIZE = 600, STEP = SIZE/SEG, HALF = SIZE/2, NV = SEG+1;
+const hs = new Float32Array(NV*NV);
+let terrainGeo;
+
+// ====== 地形 ======
+const COL = { sand:[.87,.8,.56], grass:[.42,.7,.3], forest:[.25,.52,.22], rock:[.53,.51,.5], snow:[.95,.97,1], dirt:[.5,.35,.2], wet:[.6,.56,.42] };
+function terrainColor(x,z,h,dug) {
+  const v = .88 + fbm(x*.15, z*.15, 2) * .24;
+  let c;
+  if (dug) c = COL.dirt;
+  else if (h < -.4) c = COL.wet;
+  else if (h < .9) c = COL.sand;
+  else if (x > 125 + (fbm(x*.02, z*.02, 2)-.5)*40 || h > 30) return COL.snow;
+  else if (h > 17) c = COL.rock;
+  else if (x < -45 + (fbm(x*.03+9, z*.03, 2)-.5)*30) c = COL.forest;
+  else c = COL.grass;
+  return [c[0]*v, c[1]*v, c[2]*v];
+}
+function buildTerrain() {
+  const pos = new Float32Array(NV*NV*3), col = new Float32Array(NV*NV*3);
+  for (let iz=0; iz<NV; iz++) for (let ix=0; ix<NV; ix++) {
+    const i = iz*NV+ix, x = -HALF + ix*STEP, z = -HALF + iz*STEP;
+    const d = S.digs[i] || 0, h = baseH(x,z) + d; hs[i] = h;
+    pos[i*3] = x; pos[i*3+1] = h; pos[i*3+2] = z;
+    const c = terrainColor(x,z,h, d !== 0); col.set(c, i*3);
+  }
+  const idx = new Uint32Array(SEG*SEG*6); let k = 0;
+  for (let iz=0; iz<SEG; iz++) for (let ix=0; ix<SEG; ix++) { const a = iz*NV+ix, b = a+1, c = a+NV, d = c+1; idx.set([a,c,b, b,c,d], k); k += 6; }
+  terrainGeo = new THREE.BufferGeometry();
+  terrainGeo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  terrainGeo.setAttribute("color", new THREE.BufferAttribute(col,3));
+  terrainGeo.setIndex(new THREE.BufferAttribute(idx,1));
+  terrainGeo.computeVertexNormals();
+  const m = new THREE.Mesh(terrainGeo, new THREE.MeshLambertMaterial({ vertexColors:true })); m.receiveShadow = true; scene.add(m);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(2000,2000), new THREE.MeshLambertMaterial({ color:0x3a8fd8, transparent:true, opacity:.78 }));
+  water.rotation.x = -Math.PI/2; water.position.y = 0; scene.add(water);
+}
+function groundAt(x,z) {
+  const fx = (x+HALF)/STEP, fz = (z+HALF)/STEP, ix = Math.floor(fx), iz = Math.floor(fz);
+  if (ix < 0 || iz < 0 || ix >= SEG || iz >= SEG) return -20;
+  const tx = fx-ix, tz = fz-iz, a = hs[iz*NV+ix], b = hs[iz*NV+ix+1], c = hs[(iz+1)*NV+ix], d = hs[(iz+1)*NV+ix+1];
+  return (a*(1-tx) + b*tx)*(1-tz) + (c*(1-tx) + d*tx)*tz;
+}
+function modifyTerrain(x,z,amount,radius) {
+  const pos = terrainGeo.attributes.position, col = terrainGeo.attributes.color;
+  const r = Math.ceil(radius/STEP), cx = Math.round((x+HALF)/STEP), cz = Math.round((z+HALF)/STEP);
+  for (let iz=cz-r; iz<=cz+r; iz++) for (let ix=cx-r; ix<=cx+r; ix++) {
+    if (ix < 1 || iz < 1 || ix >= SEG || iz >= SEG) continue;
+    const vx = -HALF + ix*STEP, vz = -HALF + iz*STEP, d = Math.hypot(vx-x, vz-z); if (d > radius) continue;
+    const i = iz*NV+ix, f = 1 - d/radius, nh = clamp(hs[i] + amount*f, -8, 60), dh = nh - hs[i];
+    hs[i] = nh; S.digs[i] = Math.round(((S.digs[i]||0) + dh)*100)/100; pos.setY(i, nh);
+    col.setXYZ(i, ...COL.dirt);
+  }
+  pos.needsUpdate = col.needsUpdate = true; terrainGeo.computeVertexNormals();
+  nearObjs(x, z, o => { if (Math.hypot(o.x-x, o.z-z) < radius+2) placeObj(o); }, 2);
+}
+function findLand(x,z) {
+  for (let r=0; r<80; r+=2) for (let a=0; a<16; a++) {
+    const px = x + Math.cos(a/16*6.283)*r, pz = z + Math.sin(a/16*6.283)*r, h = baseH(px,pz);
+    if (h > 1.2 && h < 7) return { x:px, z:pz };
+  }
+  return { x, z };
+}
+
+// ====== 木・石などの自然物 ======
+const objs = [], grid = new Map(), IM = {}, dirtyIM = new Set();
+const dummy = new THREE.Object3D();
+const cellKey = (cx,cz) => ((cx+64) << 8) | (cz+64);
+function nearObjs(x,z,cb,rad=1) { const cx = Math.floor(x/10), cz = Math.floor(z/10);
+  for (let dx=-rad; dx<=rad; dx++) for (let dz=-rad; dz<=rad; dz++) { const a = grid.get(cellKey(cx+dx, cz+dz)); if (a) for (const o of a) if (!o.gone) cb(o); } }
+const OBJ_INFO = {
+  tree:  { name:"木",          hp:5, verb:"きる" },
+  pine:  { name:"木",          hp:5, verb:"きる" },
+  rock:  { name:"石",          hp:6, verb:"ほる" },
+  ore:   { name:"てつこうせき", hp:8, verb:"ほる" },
+  bush:  { name:"いちごのしげみ", hp:1, verb:"とる" },
+};
+function genObjects() {
+  const r = rng(S.seed*7 + 1), removed = new Set(S.removed), list = [];
+  for (let i=0; i<16000; i++) {
+    const x = (r()*2-1)*275, z = (r()*2-1)*275, p = r(), s = .8 + r()*.6, rot = r()*6.283, h = baseH(x,z);
+    if (h < .4 || Math.hypot(x-S.spawn.x, z-S.spawn.z) < 17) continue;
+    const b = biome(x,z,h); let kind = null;
+    if (b === "forest")   kind = p < .3 ? "tree" : p < .34 ? "bush" : p < .36 ? "rock" : null;
+    else if (b === "plains")   kind = p < .045 ? "tree" : p < .085 ? "bush" : p < .1 ? "rock" : null;
+    else if (b === "mountain") kind = p < .06 ? "pine" : p < .17 ? "rock" : p < (h > 12 ? .25 : .2) ? "ore" : null;
+    else if (b === "snow")     kind = p < .12 ? "pine" : p < .16 ? "rock" : p < .175 ? "ore" : null;
+    else if (b === "beach")    kind = p < .015 ? "rock" : null;
+    if (!kind || removed.has(i)) continue;
+    list.push({ id:i, kind, x, z, s, rot, snowy: b === "snow", hp: OBJ_INFO[kind].hp,
+      r: { tree:.45, pine:.4, rock:.95, ore:.85, bush:.5 }[kind] * s });
+  }
+  const n = k => list.filter(o => o.kind === k).length;
+  const mk = (name, geo, mat, count) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1,count)); m.castShadow = true; m.receiveShadow = true; IM[name] = m; m.cursor = 0; scene.add(m); };
+  const white = () => new THREE.MeshLambertMaterial({ color:0xffffff });
+  mk("trunk", new THREE.CylinderGeometry(.22,.32,2.4,7), Lam(0x7a5230), n("tree") + n("pine"));
+  mk("crown", new THREE.IcosahedronGeometry(1.7,1), white(), n("tree"));
+  mk("cone",  new THREE.ConeGeometry(1.6,4.2,8), white(), n("pine"));
+  mk("rock",  new THREE.DodecahedronGeometry(1,0), white(), n("rock") + n("ore"));
+  mk("bush",  new THREE.IcosahedronGeometry(.8,1), Lam(0x3f7d32), n("bush"));
+  mk("berry", new THREE.SphereGeometry(.13,6,5), Lam(0xe8344a), n("bush")*3);
+  const c = new THREE.Color(), alloc = name => IM[name].cursor++;
+  for (const o of list) {
+    o.parts = [];
+    if (o.kind === "tree") { o.parts = [["trunk",alloc("trunk")], ["crown",alloc("crown")]]; IM.crown.setColorAt(o.parts[1][1], c.setHSL(.27 + (o.s-1)*.1, .55, .32 + (o.rot%1)*.08)); }
+    if (o.kind === "pine") { o.parts = [["trunk",alloc("trunk")], ["cone",alloc("cone")]]; IM.cone.setColorAt(o.parts[1][1], o.snowy ? c.setRGB(.86,.92,.95) : c.setHSL(.36,.5,.24)); }
+    if (o.kind === "rock" || o.kind === "ore") { const j = alloc("rock"); o.parts = [["rock",j]];
+      IM.rock.setColorAt(j, o.kind === "ore" ? c.setRGB(.72,.46,.3) : c.setHSL(.1, .05, .45 + (o.rot%1)*.12)); }
+    if (o.kind === "bush") o.parts = [["bush",alloc("bush")], ["berry",alloc("berry")], ["berry",alloc("berry")], ["berry",alloc("berry")]];
+    objs.push(o); const k = cellKey(Math.floor(o.x/10), Math.floor(o.z/10)); (grid.get(k) || grid.set(k,[]).get(k)).push(o);
+    placeObj(o);
+  }
+  for (const m of Object.values(IM)) if (m.instanceColor) m.instanceColor.needsUpdate = true;
+}
+function setM(name, i, x,y,z, sx,sy,sz, ry) { dummy.position.set(x,y,z); dummy.rotation.set(0,ry,0); dummy.scale.set(sx,sy,sz); dummy.updateMatrix(); IM[name].setMatrixAt(i, dummy.matrix); dirtyIM.add(IM[name]); }
+function placeObj(o) {
+  const y = groundAt(o.x, o.z), s = o.s, P = o.parts;
+  if (o.gone) { for (const [n,i] of P) setM(n,i,0,-99,0,0,0,0,0); return; }
+  if (o.kind === "tree") { setM(P[0][0],P[0][1], o.x, y+1.1*s, o.z, s,s,s, o.rot); setM(P[1][0],P[1][1], o.x, y+3.3*s, o.z, s, s*.9, s, o.rot); }
+  if (o.kind === "pine") { setM(P[0][0],P[0][1], o.x, y+.9*s, o.z, s*.9,s*.8,s*.9, o.rot); setM(P[1][0],P[1][1], o.x, y+3.6*s, o.z, s,s,s, o.rot); }
+  if (o.kind === "rock") setM("rock", P[0][1], o.x, y+.25*s, o.z, s*1.1, s*.75, s, o.rot);
+  if (o.kind === "ore")  setM("rock", P[0][1], o.x, y+.25*s, o.z, s*.85, s*.7, s*.85, o.rot);
+  if (o.kind === "bush") { setM("bush", P[0][1], o.x, y+.5*s, o.z, s, s*.8, s, o.rot);
+    for (let k=0;k<3;k++) { const a = o.rot + k*2.1; setM("berry", P[k+1][1], o.x+Math.cos(a)*.62*s, y+.65*s, o.z+Math.sin(a)*.62*s, 1,1,1, 0); } }
+}
+
+// ====== たてもの ======
+const BM = { wood:Lam(0xb98250), dark:Lam(0x7a5230), stone:Lam(0x9a9aa2), roof:Lam(0xb5402f), log:Lam(0x6b4226),
+  flame:new THREE.MeshBasicMaterial({ color:0xffa53a }), ghostOk:new THREE.MeshBasicMaterial({ color:0x66ff88, transparent:true, opacity:.4, depthWrite:false }),
+  ghostNo:new THREE.MeshBasicMaterial({ color:0xff5555, transparent:true, opacity:.4, depthWrite:false }) };
+function box(w,h,d,mat,x,y,z,solid=true) { const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); m.userData.solid = solid; m.castShadow = m.receiveShadow = true; return m; }
+function makeBuild(type) {
+  const g = new THREE.Group();
+  if (type === "floor") g.add(box(4,.3,4,BM.wood,0,.15,0));
+  if (type === "wall")  { g.add(box(4,3,.3,BM.wood,0,1.5,0)); for (let i=-1;i<=1;i++) g.add(box(.08,3,.34,BM.dark,i*1.3,1.5,0,false)); }
+  if (type === "swall") g.add(box(4,3,.4,BM.stone,0,1.5,0));
+  if (type === "roof")  { const r = new THREE.Mesh(new THREE.ConeGeometry(3.1,1.8,4), BM.roof); r.rotation.y = Math.PI/4; r.position.y = 3.9; r.castShadow = true; g.add(r); }
+  if (type === "door")  { g.add(box(1.4,2.4,.2,BM.dark,0,1.2,0,false)); g.add(box(.15,.15,.1,BM.stone,.45,1.2,.15,false)); }
+  if (type === "fire")  {
+    for (let i=0;i<6;i++) { const a = i/6*6.283; g.add(box(.35,.25,.35,BM.stone,Math.cos(a)*.7,.12,Math.sin(a)*.7,false)); }
+    const l1 = box(1.2,.18,.18,BM.log,0,.2,0,false), l2 = l1.clone(); l2.rotation.y = Math.PI/2; g.add(l1,l2);
+    const f = new THREE.Mesh(new THREE.ConeGeometry(.4,1,7), BM.flame); f.position.y = .7; f.userData.flame = true; g.add(f);
+    const L = new THREE.PointLight(0xffaa55, 30, 16, 1.6); L.position.y = 1.2; g.add(L);
+  }
+  if (type === "house") {
+    g.add(box(6.4,.3,6.4,BM.wood,0,.15,0));
+    g.add(box(6.4,3,.3,BM.wood,0,1.65,-3.05), box(.3,3,6.4,BM.wood,-3.05,1.65,0), box(.3,3,6.4,BM.wood,3.05,1.65,0));
+    g.add(box(2.3,3,.3,BM.wood,-2.05,1.65,3.05), box(2.3,3,.3,BM.wood,2.05,1.65,3.05), box(1.8,.7,.3,BM.wood,0,2.8,3.05));
+    g.add(box(1.4,2.2,.1,BM.dark,-.45,1.4,3.6,false)); // ひらいたドア
+    g.add(box(1,1,.34,new THREE.MeshBasicMaterial({ color:0xffe9a8 }),-3.06,1.9,0,false)); // まど
+    const r = new THREE.Mesh(new THREE.ConeGeometry(5,2.6,4), BM.roof); r.rotation.y = Math.PI/4; r.position.y = 4.45; r.castShadow = true; g.add(r);
+  }
+  if (type === "raise") { const m = new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.4,.3,16), BM.dark); m.position.y = .15; g.add(m); }
+  return g;
+}
+let colliders = [];
+function placeBuild(b) {
+  const g = makeBuild(b.type); g.position.set(b.x, groundAt(b.x,b.z), b.z); g.rotation.y = b.rot*Math.PI/2;
+  scene.add(g); g.updateMatrixWorld(true); b.group = g; b.cols = [];
+  g.traverse(ch => { if (ch.userData.solid) { const bb = new THREE.Box3().setFromObject(ch); b.cols.push({ minX:bb.min.x, maxX:bb.max.x, minZ:bb.min.z, maxZ:bb.max.z, minY:bb.min.y, maxY:bb.max.y }); } });
+  rebuildColliders();
+}
+function rebuildColliders() { colliders = S.builds.flatMap(b => b.cols || []); }
+function costOf(type) { const c = { ...BUILDS[type].cost }; if (S.job === "daiku" && !BUILDS[type].fixed) for (const k in c) c[k] = Math.ceil(c[k]/2); return c; }
+const canPay = c => Object.entries(c).every(([k,v]) => (S.inv[k]||0) >= v);
+const pay = c => { for (const [k,v] of Object.entries(c)) S.inv[k] -= v; };
+const costHTML = c => Object.entries(c).map(([k,v]) => `<span class="${(S.inv[k]||0) >= v ? "" : "no"}">${ITEMS[k][0]}${v}</span>`).join(" ") || "ただ";
+
+// ====== プレイヤー ======
+function makeHuman(color, job) {
+  const g = new THREE.Group(), skin = Lam(0xffd9b3), cloth = Lam(color), pants = Lam(0x3b3b5c), hair = Lam(0x5a3416);
+  const add = (geo, mat, x,y,z, parent=g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.castShadow = true; parent.add(m); return m; };
+  add(new THREE.CapsuleGeometry(.3,.45,4,10), cloth, 0,1.0,0);
+  add(new THREE.SphereGeometry(.34,18,14), skin, 0,1.62,0);
+  add(new THREE.SphereGeometry(.36,18,14,0,Math.PI*2,0,Math.PI*.5), hair, 0,1.66,-.02);
+  for (const s of [-1,1]) { add(new THREE.SphereGeometry(.045,8,6), Lam(0x222222), s*.12,1.64,.31); add(new THREE.SphereGeometry(.05,8,6), Lam(0xffa0a0), s*.2,1.55,.27); }
+  if (job === "koufu") add(new THREE.SphereGeometry(.38,16,10,0,Math.PI*2,0,Math.PI*.45), Lam(0xf1c40f), 0,1.72,0);
+  if (job === "kikori") { const h = add(new THREE.ConeGeometry(.3,.35,12), Lam(0xc0392b), 0,2.05,0); }
+  if (job === "daiku") add(new THREE.TorusGeometry(.33,.05,6,18), Lam(0xffffff), 0,1.78,0).rotation.x = Math.PI/2;
+  if (job === "kenshi") add(new THREE.BoxGeometry(.5,.08,.5), Lam(0x2e6bd1), 0,1.0,-.28).rotation.x = .3;
+  const limb = (x,y,mat,len,r) => { const p = new THREE.Group(); p.position.set(x,y,0); g.add(p); add(new THREE.CapsuleGeometry(r,len,4,8), mat, 0,-len/2-r,0, p); return p; };
+  const legL = limb(-.14,.62,pants,.32,.12), legR = limb(.14,.62,pants,.32,.12);
+  const armL = limb(-.4,1.28,cloth,.34,.1), armR = limb(.4,1.28,cloth,.34,.1);
+  return { g, legL, legR, armL, armR };
+}
+let hero, P = { x:0, y:0, z:0, vy:0, face:0, onGround:false, swing:0, actCd:0, hurtT:0, walkT:0 };
+const ageScale = () => .62 + Math.min(S.age-5, 13)/13 * .38;
+const maxHP = () => 60 + Math.min(S.age, 20)*4 + (S.job === "kenshi" ? 40 : 0);
+
+// ====== 敵 ======
+const enemies = [];
+const EGEO = { body:new THREE.SphereGeometry(.7,18,14), eye:new THREE.SphereGeometry(.15,10,8), pupil:new THREE.SphereGeometry(.07,8,6), horn:new THREE.ConeGeometry(.12,.35,8) };
+const EMAT = { body:Lam(0x3a2350), eye:new THREE.MeshBasicMaterial({ color:0xfff36b }), pupil:Lam(0x111111), horn:Lam(0x8a6fb0) };
+function spawnEnemy() {
+  for (let t=0; t<10; t++) {
+    const a = Math.random()*6.283, d = 26 + Math.random()*16, x = P.x + Math.cos(a)*d, z = P.z + Math.sin(a)*d;
+    if (groundAt(x,z) < .5) continue;
+    const g = new THREE.Group(), b = new THREE.Mesh(EGEO.body, EMAT.body); b.castShadow = true; b.scale.y = .85; g.add(b);
+    for (const s of [-1,1]) { const e = new THREE.Mesh(EGEO.eye, EMAT.eye); e.position.set(s*.25,.12,.58); g.add(e);
+      const pp = new THREE.Mesh(EGEO.pupil, EMAT.pupil); pp.position.set(s*.25,.12,.71); g.add(pp);
+      const h = new THREE.Mesh(EGEO.horn, EMAT.horn); h.position.set(s*.3,.65,0); h.rotation.z = -s*.3; g.add(h); }
+    scene.add(g); enemies.push({ g, x, z, hp:30, cd:0, flash:0, t:Math.random()*9 }); return;
+  }
+}
+function killEnemy(e, reward) {
+  scene.remove(e.g); enemies.splice(enemies.indexOf(e), 1);
+  if (reward) { bits(e.x, groundAt(e.x,e.z)+.6, e.z, 0x8a6fb0, 14); if (Math.random() < .5) gain("berry", 1); }
+}
+
+// ====== こまかい演出 ======
+const bitsArr = [], bitGeo = new THREE.BoxGeometry(.15,.15,.15);
+function bits(x,y,z,color,n=8) { const mat = Lam(color);
+  for (let i=0;i<n;i++) { const m = new THREE.Mesh(bitGeo, mat); m.position.set(x,y,z); scene.add(m);
+    bitsArr.push({ m, vx:(Math.random()-.5)*5, vy:Math.random()*5+2, vz:(Math.random()-.5)*5, life:.7 }); } }
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.innerHTML = t; $("#toasts").appendChild(d);
+  setTimeout(() => d.remove(), 3200); while ($("#toasts").children.length > 4) $("#toasts").firstChild.remove(); }
+function gain(k,n) { S.inv[k] = (S.inv[k]||0) + n; toast(`${ITEMS[k][0]} ${ITEMS[k][1]} +${n}`); renderHotbar(); }
+
+// ====== 入力 ======
+const keys = {};
+let yaw = 0, pitch = .45, camDist = 8, joy = null, drag = null;
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  keys[e.code] = true;
+  if (!running) return;
+  if (e.code === "Escape") { if (menuOpen) closeMenu(); else if (buildMode) setBuild(null); else openPause(); return; }
+  if (menuOpen) return;
+  if (e.code === "KeyE") act();
+  if (e.code === "KeyF") dig();
+  if (e.code === "KeyQ") eat();
+  if (e.code === "KeyC") openCraft();
+  if (e.code === "KeyB") openBuild();
+  if (e.code === "KeyR") rotateBuild();
+  if (e.code === "Space") { e.preventDefault(); jump(); }
+});
+addEventListener("keyup", e => keys[e.code] = false);
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+const cv = $("#cv");
+cv.addEventListener("pointerdown", e => { drag = { x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, id:e.pointerId, moved:false }; });
+addEventListener("pointermove", e => {
+  if (drag && e.pointerId === drag.id) { const dx = e.clientX-drag.x, dy = e.clientY-drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if (Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy) > 6) drag.moved = true;
+    yaw -= dx*.006; pitch = clamp(pitch + dy*.005, .05, 1.25); }
+  if (joy && e.pointerId === joy.id) { let dx = e.clientX-joy.sx, dy = e.clientY-joy.sy; const d = Math.hypot(dx,dy); if (d > 50) { dx *= 50/d; dy *= 50/d; }
+    joy.dx = dx/50; joy.dy = dy/50; $("#stick i").style.transform = `translate(${dx}px,${dy}px)`; }
+});
+addEventListener("pointerup", e => {
+  if (drag && e.pointerId === drag.id) { if (!drag.moved && running && !menuOpen && !isTouch) act(); drag = null; }
+  if (joy && e.pointerId === joy.id) { joy = null; $("#stick").style.display = "none"; }
+});
+cv.addEventListener("wheel", e => { camDist = clamp(camDist + e.deltaY*.01, 3.5, 18); }, { passive:true });
+$("#stickZone").addEventListener("pointerdown", e => { joy = { sx:e.clientX, sy:e.clientY, dx:0, dy:0, id:e.pointerId };
+  const s = $("#stick"); s.style.display = "block"; s.style.left = e.clientX+"px"; s.style.top = e.clientY+"px"; $("#stick i").style.transform = ""; });
+document.querySelectorAll("#tbtns button").forEach(b => b.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation();
+  if (menuOpen) return; ({ act, dig, jump, eat, rot:rotateBuild })[b.dataset.k](); }));
+$("#bCraft").onclick = () => !menuOpen && openCraft();
+$("#bBuild").onclick = () => !menuOpen && openBuild();
+$("#bMenu").onclick = () => !menuOpen && openPause();
+
+// ====== アクション ======
+let target = null, buildMode = null, buildRot = 0, ghost = null, ghostType = null;
+function camForward() { return [-Math.sin(yaw), -Math.cos(yaw)]; }
+function findTarget() {
+  let best = null, bd = 1e9;
+  for (const e of enemies) { const d = Math.hypot(e.x-P.x, e.z-P.z); if (d < 2.8 && d < bd) { bd = d; best = { type:"enemy", e }; } }
+  if (best) return best;
+  nearObjs(P.x, P.z, o => { const d = Math.hypot(o.x-P.x, o.z-P.z) - o.r; if (d < 1.4 && d < bd) { bd = d; best = { type:"obj", o }; } });
+  return best;
+}
+function jump() { if (P.onGround || P.swim) { P.vy = P.swim ? 5 : 8.5; P.onGround = false; } }
+function act() {
+  if (!running || menuOpen || P.actCd > 0) return;
+  if (buildMode) return placeCurrent();
+  P.actCd = .35; P.swing = .3;
+  const t = findTarget(); if (!t) return;
+  if (t.type === "enemy") {
+    const e = t.e, dmg = 8 + (S.tools.isword ? 16 : S.tools.sword ? 8 : 0) + (S.job === "kenshi" ? 6 : 0);
+    e.hp -= dmg; e.flash = .15; const a = Math.atan2(e.z-P.z, e.x-P.x); e.x += Math.cos(a)*1.8; e.z += Math.sin(a)*1.8;
+    bits(e.x, groundAt(e.x,e.z)+.8, e.z, 0xffffff, 4);
+    if (e.hp <= 0) { killEnemy(e, true); toast("かげまる を たおした！"); }
+    return;
+  }
+  const o = t.o, y = groundAt(o.x,o.z);
+  if (o.kind === "ore" && !S.tools.pick) return toast("⛏️ つるはしが ないと てつは ほれないよ（クラフトで つくろう）");
+  let power = 1;
+  if ((o.kind === "tree" || o.kind === "pine") && S.tools.axe) power++;
+  if ((o.kind === "tree" || o.kind === "pine") && S.job === "kikori") power++;
+  if ((o.kind === "rock" || o.kind === "ore") && S.tools.pick) power++;
+  if ((o.kind === "rock" || o.kind === "ore") && S.job === "koufu") power++;
+  o.hp -= power;
+  const color = { tree:0x7a5230, pine:0x7a5230, rock:0x888888, ore:0xb87545, bush:0x3f7d32 }[o.kind];
+  bits(o.x, y+1, o.z, color, 5);
+  if (o.hp > 0) return;
+  o.gone = true; placeObj(o); S.removed.push(o.id); bits(o.x, y+1.5, o.z, color, 14);
+  if (o.kind === "tree" || o.kind === "pine") gain("wood", 3 + (S.job === "kikori" ? 2 : 0));
+  if (o.kind === "rock") gain("stone", 3 + (S.job === "koufu" ? 2 : 0));
+  if (o.kind === "ore")  gain("iron", 2 + (S.job === "koufu" ? 1 : 0));
+  if (o.kind === "bush") gain("berry", 3);
+}
+function dig() {
+  if (!running || menuOpen || P.actCd > 0 || buildMode) return;
+  P.actCd = .4; P.swing = .3;
+  const [fx,fz] = [Math.sin(P.face), Math.cos(P.face)], x = P.x + fx*1.8, z = P.z + fz*1.8;
+  if (groundAt(x,z) <= -7.5) return toast("これ以上 ふかく ほれないよ");
+  modifyTerrain(x, z, -.7, 2.4); bits(x, groundAt(x,z)+.3, z, 0x7a5230, 8);
+  S.inv.soil = (S.inv.soil||0) + 1; renderHotbar();
+}
+function eat() {
+  if (!running || menuOpen) return;
+  const mx = maxHP();
+  if (S.hp >= mx) return toast("おなかいっぱい（HPは まんたん）");
+  if (S.inv.jam > 0)  { S.inv.jam--;  S.hp = Math.min(mx, S.hp+50); toast("🍯 ジャムを たべた！ HP +50"); }
+  else if (S.inv.berry > 0) { S.inv.berry--; S.hp = Math.min(mx, S.hp+15); toast("🍓 いちごを たべた！ HP +15"); }
+  else return toast("たべものが ないよ。いちごのしげみを さがそう");
+  renderHotbar();
+}
+
+// ====== たてるモード ======
+function setBuild(type) {
+  buildMode = type;
+  if (ghost) { scene.remove(ghost); ghost = null; ghostType = null; }
+  if (type && type !== "remove") { ghost = makeBuild(type); ghost.traverse(m => { if (m.isLight) m.intensity = 0; }); scene.add(ghost); ghostType = null; }
+}
+function rotateBuild() { if (buildMode) buildRot = (buildRot+1) % 4; }
+function buildSpot() { const [fx,fz] = camForward(), d = buildMode === "house" ? 8 : buildMode === "raise" ? 3 : 4.5;
+  let x = P.x + fx*d, z = P.z + fz*d; if (buildMode !== "raise") { x = Math.round(x/2)*2; z = Math.round(z/2)*2; } return [x,z]; }
+function nearestBuild(x,z) { let best = null, bd = 6; for (const b of S.builds) { const d = Math.hypot(b.x-x, b.z-z); if (d < bd) { bd = d; best = b; } } return best; }
+function placeCurrent() {
+  const [x,z] = buildSpot(); P.actCd = .3;
+  if (buildMode === "remove") {
+    const b = nearestBuild(x,z); if (!b) return toast("ちかくに こわせる たてものが ないよ");
+    scene.remove(b.group); S.builds.splice(S.builds.indexOf(b),1); rebuildColliders();
+    const c = costOf(b.type); for (const [k,v] of Object.entries(c)) if (k !== "soil") S.inv[k] = (S.inv[k]||0) + Math.floor(v/2) + (k === "campfire" ? 1 : 0);
+    bits(b.x, groundAt(b.x,b.z)+1, b.z, 0xb98250, 16); toast(`${BUILDS[b.type].name} を こわした`); renderHotbar(); return;
+  }
+  const c = costOf(buildMode);
+  if (!canPay(c)) return toast("ざいりょうが たりないよ：" + costHTML(c));
+  if (groundAt(x,z) < -.5 && buildMode !== "raise") return toast("水の 中には たてられないよ");
+  pay(c);
+  if (buildMode === "raise") { modifyTerrain(x, z, .7, 2.4); renderHotbar(); return; }
+  const b = { type:buildMode, x, z, rot:buildRot }; S.builds.push(b); placeBuild(b);
+  nearObjs(x, z, o => { if (Math.hypot(o.x-x, o.z-z) < (buildMode === "house" ? 5 : 2.5)) { o.gone = true; placeObj(o); S.removed.push(o.id); } });
+  bits(x, groundAt(x,z)+1, z, 0xffffff, 10); renderHotbar();
+  if (!canPay(c)) { toast(`${BUILDS[buildMode].name} の ざいりょうが なくなった`); setBuild(null); }
+}
+
+// ====== メニュー ======
+const screen = $("#screen");
+function openMenu(html) { menuOpen = true; screen.innerHTML = `<div class="card">${html}</div>`; screen.hidden = false; for (const k in keys) keys[k] = false; }
+function closeMenu() { menuOpen = false; screen.hidden = true; screen.innerHTML = ""; }
+screen.addEventListener("pointerdown", e => { if (e.target === screen && running) closeMenu(); });
+function openCraft() {
+  if (buildMode) setBuild(null);
+  openMenu(`<h2>🔨 クラフト</h2>` + RECIPES.map(r => {
+    const have = r.tool && S.tools[r.id];
+    return `<div class="row"><span class="ic">${r.icon}</span><div class="grow"><b>${r.name}</b><small>${r.desc}</small><div class="cost">${costHTML(r.cost)}</div></div>
+      <button data-craft="${r.id}" ${have || !canPay(r.cost) ? "disabled" : ""}>${have ? "もってる" : "つくる"}</button></div>`; }).join("")
+    + `<p style="text-align:center;margin-top:14px"><button data-close>とじる</button></p>`);
+  screen.querySelectorAll("[data-craft]").forEach(b => b.onclick = () => {
+    const r = RECIPES.find(x => x.id === b.dataset.craft); pay(r.cost);
+    if (r.tool) S.tools[r.id] = true; else S.inv[r.id] = (S.inv[r.id]||0) + 1;
+    toast(`${r.icon} ${r.name} を つくった！`); renderHotbar(); openCraft(); });
+  screen.querySelector("[data-close]").onclick = closeMenu;
+}
+function openBuild() {
+  openMenu(`<h2>🏠 たてる</h2><p style="font-size:13px;opacity:.85;margin-top:0">えらぶと まえに みどりの かげが でるよ。${isTouch ? "✊で おく・🔄で まわす" : "クリック / E で おく・R で まわす・Esc で やめる"}${S.job === "daiku" ? "<br>🔨 だいく なので ざいりょうが 半分！" : ""}</p>`
+    + Object.entries(BUILDS).map(([k,b]) => `<div class="row"><span class="ic">${b.icon}</span><div class="grow"><b>${b.name}</b>${b.desc ? `<small>${b.desc}</small>` : ""}<div class="cost">${costHTML(costOf(k))}</div></div>
+      <button data-b="${k}">えらぶ</button></div>`).join("")
+    + `<p style="text-align:center;margin-top:14px"><button data-close>とじる</button></p>`);
+  screen.querySelectorAll("[data-b]").forEach(b => b.onclick = () => { closeMenu(); setBuild(b.dataset.b); toast(`${BUILDS[b.dataset.b].icon} ${BUILDS[b.dataset.b].name} を えらんだ`); });
+  screen.querySelector("[data-close]").onclick = closeMenu;
+}
+function openPause() {
+  openMenu(`<h2>≡ メニュー</h2><p>${esc(S.name)}（${S.age}さい・${JOBS[S.job].name}）<br>${HOMES[S.home].icon} ${HOMES[S.home].name} うまれ ・ ${S.day}日目 ・ 敵：${S.enemies ? "あり" : "なし"}</p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap"><button data-a="back">つづける</button><button data-a="home">🏠 うまれた場所に もどる</button><button data-a="title">💾 セーブして タイトルへ</button></p>`);
+  screen.querySelector('[data-a="back"]').onclick = closeMenu;
+  screen.querySelector('[data-a="home"]').onclick = () => { closeMenu(); respawn(); toast("うまれた場所に もどった"); };
+  screen.querySelector('[data-a="title"]').onclick = () => { save(); location.reload(); };
+}
+
+// ====== HUD ======
+function renderHotbar() {
+  $("#hotbar").innerHTML = Object.entries(ITEMS).filter(([k]) => k !== "jam" || S.inv.jam).map(([k,[ic,nm]]) =>
+    `<button class="slotitem" data-i="${k}" title="${nm}">${ic}<span>${nm}</span><b>${S.inv[k]||0}</b></button>`).join("");
+  $("#hotbar").querySelectorAll('[data-i="berry"],[data-i="jam"]').forEach(b => b.onclick = eat);
+  $("#tools").textContent = Object.keys(S.tools).map(k => TOOLS[k]).join("");
+}
+function renderInfo() {
+  const sunH = -Math.cos(S.dayTime*6.283), hr = Math.floor(S.dayTime*24);
+  $("#who").textContent = `${JOBS[S.job].icon} ${S.name}（${S.age}さい）`;
+  $("#when").textContent = `${S.day}日目 ${sunH > 0 ? "☀️ ひる" : "🌙 よる"} ${hr}じ`;
+  $("#hp").style.width = (S.hp / maxHP() * 100) + "%";
+}
+
+// ====== セーブ ======
+function save() {
+  if (!S) return;
+  S.p = { x:P.x, y:P.y, z:P.z };
+  const data = { ...S, builds: S.builds.map(({ type,x,z,rot }) => ({ type,x,z,rot })) };
+  if (!store.set(slotKey(S.slot), data)) toast("⚠️ セーブできなかった");
+}
+setInterval(() => { if (running) save(); }, 20000);
+addEventListener("visibilitychange", () => { if (document.hidden && running) save(); });
+
+// ====== ゲームの更新 ======
+const DAY_LEN = 360; // 1日 = 6分
+const skyDay = new THREE.Color(0x8fd3ff), skyNight = new THREE.Color(0x0b1230), skyDusk = new THREE.Color(0xff9a6b), tmpC = new THREE.Color();
+let spawnT = 0, regenT = 0;
+function respawn() { P.x = S.spawn.x; P.z = S.spawn.z; P.y = groundAt(P.x,P.z) + 1; P.vy = 0; S.hp = maxHP(); for (const e of [...enemies]) killEnemy(e, false); }
+function pushOut(x, z, r, y, h, stand) {
+  let top = -Infinity;
+  for (const c of colliders) {
+    const cx = clamp(x, c.minX, c.maxX), cz = clamp(z, c.minZ, c.maxZ), dx = x-cx, dz = z-cz, d2 = dx*dx + dz*dz;
+    if (d2 >= r*r || y + h < c.minY) continue;
+    if (stand && y >= c.maxY - .45) { top = Math.max(top, c.maxY); continue; }
+    if (d2 > 1e-6) { const d = Math.sqrt(d2); x = cx + dx/d*r; z = cz + dz/d*r; }
+    else { const o = [[c.minX-r-x,0],[c.maxX+r-x,0],[0,c.minZ-r-z],[0,c.maxZ+r-z]].sort((a,b) => Math.abs(a[0]+a[1]) - Math.abs(b[0]+b[1]))[0]; x += o[0]; z += o[1]; }
+  }
+  return [x, z, top];
+}
+function update(dt) {
+  // 時間と年齢
+  S.dayTime += dt/DAY_LEN;
+  if (S.dayTime >= 1) { S.dayTime -= 1; S.day++; S.age++; S.hp = Math.min(maxHP(), S.hp + 4);
+    toast(`🎂 おたんじょうび！ ${S.name} は ${S.age}さいに なった！`); if (S.age <= 18) toast("からだが すこし 大きくなった"); save(); }
+  const sc = ageScale();
+  hero.g.scale.setScalar(sc);
+
+  // いどう
+  let ix = 0, iz = 0;
+  if (keys.KeyW || keys.ArrowUp) iz++; if (keys.KeyS || keys.ArrowDown) iz--;
+  if (keys.KeyD || keys.ArrowRight) ix++; if (keys.KeyA || keys.ArrowLeft) ix--;
+  if (keys.ArrowLeft && !keys.KeyA) {} // 矢印キーも いどうに つかう
+  if (joy) { ix += joy.dx; iz -= joy.dy; }
+  const il = Math.hypot(ix,iz); if (il > 1) { ix /= il; iz /= il; }
+  const [fx,fz] = camForward(), rx = -fz, rz = fx;
+  const mx = fx*iz + rx*ix, mz = fz*iz + rz*ix, moving = Math.hypot(mx,mz) > .05;
+  const ground0 = groundAt(P.x, P.z); P.swim = ground0 < -.9 && P.y < -.3;
+  const speed = (4 + sc*2.2) * (keys.ShiftLeft || keys.ShiftRight ? 1.6 : 1) * (P.swim ? .55 : 1);
+  let nx = P.x + mx*speed*dt, nz = P.z + mz*speed*dt;
+  if (moving) { const want = Math.atan2(mx, mz); let d = want - P.face; d = Math.atan2(Math.sin(d), Math.cos(d)); P.face += d*Math.min(1, dt*12); }
+  // 木や岩に ぶつかる
+  nearObjs(nx, nz, o => { if (o.kind === "bush") return; const dx = nx-o.x, dz = nz-o.z, d = Math.hypot(dx,dz), m = o.r + .35*sc;
+    if (d < m && d > 0) { nx = o.x + dx/d*m; nz = o.z + dz/d*m; } });
+  let top; [nx, nz, top] = pushOut(nx, nz, .35*sc, P.y, 1.8*sc, true);
+  const rr = Math.hypot(nx, nz); if (rr > 285) { nx *= 285/rr; nz *= 285/rr; }
+  P.x = nx; P.z = nz;
+  // ジャンプと重力
+  P.vy -= (P.swim ? 8 : 24) * dt; P.y += P.vy*dt;
+  const gh = groundAt(P.x, P.z), floor = Math.max(gh, top, gh < -.9 ? -1.0 : -Infinity);
+  if (P.y <= floor) { P.y = floor; P.vy = 0; P.onGround = true; } else P.onGround = P.y - floor < .05;
+  if (keys.Space && P.swim) P.vy = Math.max(P.vy, 2);
+
+  // からだの アニメ
+  hero.g.position.set(P.x, P.y, P.z); hero.g.rotation.y = P.face;
+  P.walkT += dt * (moving ? speed*2.2 : 0);
+  const sw = moving ? Math.sin(P.walkT)*.7 : 0;
+  hero.legL.rotation.x = sw; hero.legR.rotation.x = -sw; hero.armL.rotation.x = -sw*.8;
+  P.swing = Math.max(0, P.swing - dt); P.actCd = Math.max(0, P.actCd - dt);
+  hero.armR.rotation.x = P.swing > 0 ? -Math.sin(P.swing/.3*Math.PI)*2.2 : sw*.8;
+
+  // カメラ
+  const tgt = new THREE.Vector3(P.x, P.y + 1.4*sc, P.z);
+  const cx = tgt.x + Math.sin(yaw)*Math.cos(pitch)*camDist, cz = tgt.z + Math.cos(yaw)*Math.cos(pitch)*camDist;
+  let cy = tgt.y + Math.sin(pitch)*camDist; cy = Math.max(cy, groundAt(cx,cz) + .6, .4);
+  camera.position.set(cx, cy, cz); camera.lookAt(tgt);
+
+  // 太陽と空
+  const sunH = -Math.cos(S.dayTime*6.283), light = clamp(sunH*1.3 + .35, .1, 1), a = S.dayTime*6.283;
+  sun.position.set(P.x + Math.sin(a)*50, P.y + 20 + Math.abs(sunH)*60, P.z + 30); sun.target.position.set(P.x, P.y, P.z);
+  sun.intensity = light * 1.2; hemi.intensity = .1 + light*.6;
+  tmpC.copy(skyNight).lerp(skyDay, light);
+  const dusk = clamp(1 - Math.abs(sunH)*4, 0, 1) * (light > .2 ? .5 : .25); tmpC.lerp(skyDusk, dusk);
+  scene.background = tmpC; scene.fog.color.copy(tmpC);
+  const night = sunH < -.1;
+
+  // 敵
+  if (S.enemies) {
+    spawnT -= dt;
+    const maxE = night ? 7 : (S.p && biome(P.x,P.z,gh) === "mountain" ? 3 : 1);
+    if (spawnT <= 0) { spawnT = night ? 3 : 8; if (enemies.length < maxE) spawnEnemy(); }
+  }
+  for (const e of [...enemies]) {
+    e.t += dt; e.cd -= dt; e.flash -= dt;
+    const dx = P.x-e.x, dz = P.z-e.z, d = Math.hypot(dx,dz);
+    if (d > 80 || (!night && d > 40 && Math.random() < dt*.2)) { killEnemy(e, false); continue; }
+    if (d < 30 && d > 1) { const sp = night ? 3.4 : 2.7; e.x += dx/d*sp*dt; e.z += dz/d*sp*dt; }
+    else { e.x += Math.sin(e.t*.7)*dt; e.z += Math.cos(e.t*.5)*dt; }
+    const eg = groundAt(e.x, e.z); [e.x, e.z] = pushOut(e.x, e.z, .7, eg, 1.4, false);
+    e.g.position.set(e.x, Math.max(groundAt(e.x,e.z), -1) + .6 + Math.abs(Math.sin(e.t*6))*.35, e.z);
+    e.g.rotation.y = Math.atan2(dx, dz); e.g.scale.setScalar(e.flash > 0 ? 1.2 : 1);
+    if (d < 1.1 + .3*sc && e.cd <= 0 && Math.abs(e.g.position.y - (P.y+.6)) < 1.6) {
+      e.cd = 1; S.hp -= 8; P.hurtT = 6; $("#hurt").style.opacity = 1; setTimeout(() => $("#hurt").style.opacity = 0, 250);
+      if (S.hp <= 0) { toast("たおれてしまった…<br>うまれた場所で めがさめた"); respawn(); }
+    }
+  }
+  // HP しぜんかいふく
+  P.hurtT -= dt; regenT += dt; if (regenT > 2) { regenT = 0; if (P.hurtT <= 0) S.hp = Math.min(maxHP(), S.hp + 1); }
+
+  // たてるモード の かげ
+  if (buildMode) {
+    const [x,z] = buildSpot();
+    if (ghost) {
+      if (ghostType !== buildMode + canPay(costOf(buildMode))) { const ok = canPay(costOf(buildMode)); ghost.traverse(m => { if (m.isMesh) m.material = ok ? BM.ghostOk : BM.ghostNo; }); ghostType = buildMode + ok; }
+      ghost.position.set(x, groundAt(x,z), z); ghost.rotation.y = buildRot*Math.PI/2;
+    }
+    const nb = buildMode === "remove" && nearestBuild(x,z);
+    $("#hint").innerHTML = buildMode === "remove" ? (nb ? `💥 ${BUILDS[nb.type].name} を こわす（${isTouch ? "✊" : "クリック / E"}）` : "こわしたい たてものに むかってね")
+      : `${BUILDS[buildMode].icon} ${BUILDS[buildMode].name}：${costHTML(costOf(buildMode))}　${isTouch ? "✊ おく 🔄 まわす" : "クリック/E おく・R まわす・Esc やめる"}`;
+  } else {
+    target = findTarget();
+    $("#hint").innerHTML = !target ? (P.swim ? "🏊 およいでいる（スペースで うく）" : `${isTouch ? "🕳️" : "F"}：じめんを ほる`)
+      : target.type === "enemy" ? "⚔️ かげまる を こうげき！" : `${OBJ_INFO[target.o.kind].name} を ${OBJ_INFO[target.o.kind].verb}`;
+  }
+
+  // たき火の ゆらめき
+  for (const b of S.builds) if (b.type === "fire" && b.group) b.group.traverse(m => { if (m.userData.flame) m.scale.set(1, .8 + Math.sin(performance.now()/90 + b.x)*.2, 1); if (m.isLight) m.intensity = night ? 40 : 8; });
+  // こなごな
+  for (const p of [...bitsArr]) { p.life -= dt; p.vy -= 15*dt; p.m.position.x += p.vx*dt; p.m.position.y += p.vy*dt; p.m.position.z += p.vz*dt;
+    if (p.life <= 0) { scene.remove(p.m); bitsArr.splice(bitsArr.indexOf(p),1); } }
+  for (const m of dirtyIM) m.instanceMatrix.needsUpdate = true; dirtyIM.clear();
+  renderInfo();
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last)/1000); last = now;
+  if (running && !menuOpen) update(dt);
+  if (running) renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ====== はじめる ======
+function startGame() {
+  initNoise(S.seed);
+  buildTerrain(); genObjects();
+  for (const b of S.builds) placeBuild(b);
+  hero = makeHuman(JOBS[S.job].color, S.job); scene.add(hero.g);
+  P.x = S.p.x; P.z = S.p.z; P.y = Math.max(S.p.y, groundAt(P.x,P.z)); P.face = Math.PI; yaw = 0;
+  if (!S.hp || S.hp <= 0) S.hp = maxHP();
+  closeMenu(); $("#hud").hidden = false; if (isTouch) $("#touch").hidden = false;
+  renderHotbar(); running = true; last = performance.now();
+}
+function createWorld(slot, name, job, home, enemiesOn) {
+  const seed = (Math.random()*1e9) | 0;
+  S = { v:1, slot, name, job, home, enemies:enemiesOn, seed, day:1, dayTime:.3, age:5, hp:0,
+        inv:{ wood:0, stone:0, iron:0, soil:0, berry:3, jam:0, campfire:0 }, tools:{}, removed:[], digs:{}, builds:[] };
+  if (job === "kikori") S.tools.axe = true;
+  if (job === "koufu") S.tools.pick = true;
+  if (job === "kenshi") S.tools.sword = true;
+  if (job === "daiku") S.inv.wood = 10;
+  initNoise(seed);
+  const H = HOMES[home], sp = findLand(H.x, H.z); S.spawn = sp; S.p = { x:sp.x, y:baseH(sp.x,sp.z)+1, z:sp.z };
+  const spots = H.houses === 2 ? [[-9,-8],[9,-8]] : [[0,-9]];
+  for (const [ox,oz] of spots) { const x = Math.round((sp.x+ox)/2)*2, z = Math.round((sp.z+oz)/2)*2; if (baseH(x,z) > .5) S.builds.push({ type:"house", x, z, rot:0 }); }
+  S.builds.push({ type:"fire", x:Math.round(sp.x/2)*2, z:Math.round((sp.z-4)/2)*2, rot:0 });
+  save(); startGame();
+  toast(`${esc(name)} は ${H.name} で うまれた 5さいの ${JOBS[job].name}！`);
+  setTimeout(() => toast(isTouch ? "左がわを ドラッグで いどう・右がわを ドラッグで まわりを 見る" : "WASD で いどう・マウスを ドラッグで まわりを 見る"), 1500);
+  setTimeout(() => toast("木を きったり 石を ほって、じぶんの 家を たててみよう！"), 4000);
+}
+
+// ====== タイトル と キャラづくり ======
+function showTitle() {
+  running = false; menuOpen = true; screen.hidden = false;
+  let html = `<div class="card"><h1>🌍 ぼうけんのせかい</h1><p class="sub">じぶんだけの せかいで くらそう！ せかいは ${SLOTS}つまで つくれるよ</p>`;
+  for (let i=0; i<SLOTS; i++) {
+    const d = store.get(slotKey(i));
+    html += d ? `<div class="slot"><div style="font-size:32px">${JOBS[d.job]?.icon || "🙂"}</div><div class="grow"><b>${esc(d.name)}</b>
+        <small>${JOBS[d.job]?.name}・${HOMES[d.home]?.icon}${HOMES[d.home]?.name}・${d.age}さい・${d.day}日目・敵${d.enemies ? "あり" : "なし"}</small></div>
+        <button data-play="${i}" class="big" style="font-size:15px;padding:8px 16px">あそぶ</button><button data-del="${i}" title="けす">🗑️</button></div>`
+      : `<div class="slot empty"><div style="font-size:32px">✨</div><div class="grow"><b>からっぽ</b><small>せかい ${i+1}</small></div><button data-new="${i}">＋ あたらしい せかい</button></div>`;
+  }
+  screen.innerHTML = html + `</div>`;
+  screen.querySelectorAll("[data-play]").forEach(b => b.onclick = () => { S = store.get(slotKey(+b.dataset.play)); S.slot = +b.dataset.play; startGame(); toast(`おかえり、${esc(S.name)}！`); });
+  screen.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { const d = store.get(slotKey(+b.dataset.del));
+    if (confirm(`「${d.name}」の せかいを けしますか？ もとに もどせません。`)) { store.del(slotKey(+b.dataset.del)); showTitle(); } });
+  screen.querySelectorAll("[data-new]").forEach(b => b.onclick = () => showCreate(+b.dataset.new));
+}
+function showCreate(slot) {
+  const st = { job:"kikori", home:"mori", enemies:true };
+  const card = (group, k, o) => `<button class="opt${st[group] === k ? " sel" : ""}" data-g="${group}" data-k="${k}"><span class="ic">${o.icon}</span><b>${o.name}</b><small>${o.desc}</small></button>`;
+  const render = () => {
+    const name = screen.querySelector("#nm")?.value ?? "ぼうけんしゃ";
+    screen.innerHTML = `<div class="card"><h2>✨ あたらしい せかい</h2>
+      <h3>👤 なまえ</h3><input id="nm" type="text" maxlength="10" value="${esc(name)}">
+      <h3>🧰 しょくぎょう</h3><div class="opts">${Object.entries(JOBS).map(([k,o]) => card("job",k,o)).join("")}</div>
+      <h3>🏡 うまれた ばしょ（ここから はじまる）</h3><div class="opts">${Object.entries(HOMES).map(([k,o]) => card("home",k,o)).join("")}</div>
+      <h3>👾 てき</h3><div class="opts">
+        <button class="opt${st.enemies ? " sel" : ""}" data-en="1"><span class="ic">👾</span><b>あり</b><small>よるに かげまるが でる。たたかって まもろう</small></button>
+        <button class="opt${!st.enemies ? " sel" : ""}" data-en="0"><span class="ic">🕊️</span><b>なし</b><small>てきは でない。のんびり つくって あそべる</small></button></div>
+      <p style="font-size:13px;opacity:.85">🎂 5さいから はじまって、1日 すぎるごとに 1さい 大きくなるよ</p>
+      <p style="display:flex;gap:8px;justify-content:space-between;margin-top:16px"><button id="cancel">もどる</button><button id="go" class="big">この せかいで はじめる！</button></p></div>`;
+    screen.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { st[b.dataset.g] = b.dataset.k; render(); });
+    screen.querySelectorAll("[data-en]").forEach(b => b.onclick = () => { st.enemies = b.dataset.en === "1"; render(); });
+    screen.querySelector("#cancel").onclick = showTitle;
+    screen.querySelector("#go").onclick = () => { const n = screen.querySelector("#nm").value.trim() || "ぼうけんしゃ"; screen.innerHTML = `<div class="card"><h2>せかいを つくっています…</h2></div>`;
+      setTimeout(() => createWorld(slot, n, st.job, st.home, st.enemies), 50); };
+  };
+  render();
+}
+window.__dbg = { get S() { return S; }, P, objs, enemies, get colliders() { return colliders; }, setYaw: v => yaw = v };
+showTitle();
+</script>
+</body>
+</html>
