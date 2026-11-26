@@ -181,6 +181,16 @@
   .loot { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
   .loot span { background:#2a2440; border:2px solid #6a5f8f; border-radius:10px; padding:6px 10px; font-size:15px; animation:pop .5s; }
   .evbox { background:linear-gradient(135deg,#3a1a3a,#1a2a4a); border:2px solid #ff9ad5; border-radius:12px; padding:10px; margin-bottom:10px; }
+  .backfix { position:fixed; left:12px; top:12px; z-index:30; font-size:18px; font-weight:900; padding:10px 18px; background:#1d1838; border:3px solid #fff; border-radius:14px; color:#fff; box-shadow:0 4px 14px rgba(0,0,0,.5); }
+  .lvbox { position:absolute; left:10px; top:6px; text-align:left; font-weight:900; font-size:15px; color:#fff; text-shadow:0 0 8px rgba(120,80,255,.9); min-width:190px; }
+  .lvbox b { font-size:24px; color:#ffe14a; } .lvbox small { display:block; font-size:11px; opacity:.85; }
+  .lvbar { height:9px; background:rgba(255,255,255,.18); border-radius:6px; overflow:hidden; margin-top:3px; } .lvbar i { display:block; height:100%; background:linear-gradient(90deg,#ff5e9e,#ffd34d,#46e06a,#4aa8ff,#b77bff); }
+  #lvpop { position:fixed; top:20%; left:50%; transform:translateX(-50%); z-index:50; padding:18px 30px; border-radius:22px; font-size:26px; font-weight:900; color:#fff; text-align:center; pointer-events:none;
+    background:linear-gradient(135deg,#ff5e9e,#b77bff,#4aa8ff); border:4px solid #fff; box-shadow:0 0 40px rgba(255,220,120,.9); animation:lvpop 2.6s ease forwards; }
+  #lvpop small { display:block; font-size:14px; }
+  @keyframes lvpop { 0% { opacity:0; transform:translateX(-50%) scale(.4); } 12% { opacity:1; transform:translateX(-50%) scale(1.15); } 20% { transform:translateX(-50%) scale(1); } 85% { opacity:1; } 100% { opacity:0; transform:translateX(-50%) translateY(-30px); } }
+  .tbtn.help { --a:#3ddc97; --b:#0e8a5a; --g:rgba(60,220,150,.8); grid-column:1 / -1; font-size:clamp(16px,2.6vw,22px); padding:12px 8px; }
+  .helpsec { background:#2a2440; border-radius:12px; padding:10px 14px; margin:8px 0; line-height:1.9; font-size:14px; } .helpsec b { color:var(--accent); }
   .tbtn.surv { --a:#ffb03a; --b:#e0531a; --g:rgba(255,140,40,.85); grid-column:1 / -1; }
 </style>
 </head>
@@ -205,6 +215,7 @@
     <button id="bMission">📋 ミッション<kbd>M</kbd></button>
     <button id="bChest">🧰 たからばこ<kbd>T</kbd></button>
     <button id="bView">👀 してん<kbd>V</kbd></button>
+    <button id="bHelp">❓ そうさ<kbd>H</kbd></button>
     <button id="bMenu">≡</button>
   </div>
   <div id="hint"></div>
@@ -228,6 +239,7 @@
 </div>
 <div id="screen" class="overlay"></div>
 <div id="sleepfx">💤</div>
+<div id="lvpop" hidden></div>
 
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <script type="module">
@@ -247,7 +259,8 @@ const SLOTS = 3, slotKey = i => "boken-world-" + i;
 const META_KEY = "lumiteria-meta";
 const meta = Object.assign({ coins:605, up:{}, gifts:[] }, store.get(META_KEY) || {});
 meta.up = Object.assign({ hp:0, spd:0, atk:0 }, meta.up);
-meta.pulls ??= 0; meta.pity ??= 0; meta.freeAt ??= 0;
+meta.pulls ??= 0; meta.pity ??= 0; meta.freeAt ??= 0; meta.wlv ??= 0;
+const WLV_MAX = 10, wlvCost = lv => 300 * (lv + 1);   // ワールドレベル：コインと ざいりょうが ふえる
 const saveMeta = () => store.set(META_KEY, meta);
 function addCoins(n) { meta.coins += n; saveMeta(); }
 const UPGRADES = {
@@ -256,6 +269,24 @@ const UPGRADES = {
   atk: { name:"こうげき",   icon:"⚔️", desc:"こうげき +5" },
 };
 const UP_COST = [150, 300, 500];
+// ===== ルミテリア レベル（ガチャ・サバイバー・ルミテリア ぜんぶで あがる。さいだい 1おく） =====
+const LV_KEY = "lumiteria-level", LV_MAX = 100000000;
+const lvData = Object.assign({ xp:0 }, (() => { try { return JSON.parse(localStorage.getItem(LV_KEY)); } catch(e) { return null; } })() || {});
+const lvOf = xp => Math.min(LV_MAX, 1 + Math.floor(Math.pow(Math.max(0, xp) / 5, 0.6)));
+const xpFor = lv => lv <= 1 ? 0 : Math.ceil(5 * Math.pow(lv - 1, 1 / 0.6));
+function addXP(n) { const fresh = (() => { try { return JSON.parse(localStorage.getItem(LV_KEY)); } catch(e) { return null; } })(); if (fresh && fresh.xp > lvData.xp) lvData.xp = fresh.xp;
+  const before = lvOf(lvData.xp); lvData.xp += n; try { localStorage.setItem(LV_KEY, JSON.stringify(lvData)); } catch(e) {}
+  const after = lvOf(lvData.xp); if (after > before) onLumiLevelUp(after); return after; }
+let lvPopT = 0;
+function onLumiLevelUp(lv) {
+  const el = document.querySelector("#lvpop"); if (!el) return;
+  el.hidden = false; el.innerHTML = `⭐ ルミテリア レベル ${lv.toLocaleString()} に アップ！<small>ガチャ・サバイバー・ルミテリアで どんどん あがるよ（さいだい 1おく）</small>`;
+  el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
+  clearTimeout(lvPopT); lvPopT = setTimeout(() => el.hidden = true, 2700);
+  const lb = document.querySelector(".lvbox"); if (lb) lb.outerHTML = lvHTML();
+}
+function lvHTML() { const lv = lvOf(lvData.xp), a = xpFor(lv), b = xpFor(lv + 1), pct = lv >= LV_MAX ? 100 : Math.floor((lvData.xp - a) / (b - a) * 100);
+  return `<div class="lvbox">🌈 ルミテリア レベル <b>${lv.toLocaleString()}</b><div class="lvbar"><i style="width:${pct}%"></i></div><small>${lv >= LV_MAX ? "さいだい レベル！" : `つぎの レベルまで あと ${(b - lvData.xp).toLocaleString()}`}</small></div>`; }
 const isTouch = matchMedia("(pointer:coarse)").matches;
 
 // ====== データ ======
@@ -286,13 +317,19 @@ const ITEMS = {
   suika:["🍉","すいか"], kakigori:["🍧","かきごおり"], dango:["🍡","つきみだんご"], candy:["🍭","キャンディ"], cupcake:["🧁","カップケーキ"], imo:["🍠","やきいも"], cake:["🍰","ケーキ"],
   // たからもの（おみせで うれる）
   silverbar:["🥈","ぎんの かたまり"], goldbar:["🥇","きんの かたまり"], ring:["💍","ゆびわ"], crystal:["🔮","まほうの すいしょう"], trophy:["🏆","トロフィー"],
+  // まちの たてもの・はたけ
+  shop:["🏪","おみせ（たてもの）"], super:["🛍️","スーパー（たてもの）"],
+  seed:["🌱","やさいの たね"], carrot:["🥕","にんじん"], tomato:["🍅","トマト"], corn:["🌽","とうもろこし"],
   star:["⭐","ほしの かけら"], diamond:["💎","ダイヤモンド"], crown:["👑","おうかん"], lumi:["🌈","ルミテリアの ほうせき"],
 };
 const DEF_INV = Object.fromEntries(Object.keys(ITEMS).map(k => [k, 0]));
 const FOODS = { gohan:{hp:40,full:true}, omelet:{hp:60,full:true}, pie:{hp:50,full:true}, soup:{hp:55,full:true}, pancake:{hp:60,full:true}, applepie:{hp:50,full:true},
   jam:{hp:50,h:3}, berry:{hp:15,h:1}, egg:{hp:10,h:1}, apple:{hp:20,h:1}, mush:{hp:12,h:1}, milk:{hp:25,h:1},
-  senbei:{hp:25,h:2}, choco:{hp:30,h:2}, arare:{hp:25,h:2}, matcha:{hp:30,h:1}, pudding:{hp:35,h:2}, grape:{hp:25,h:2}, suika:{hp:35,h:2}, kakigori:{hp:30,h:1}, dango:{hp:35,h:2}, candy:{hp:30,h:2}, cupcake:{hp:40,h:3}, imo:{hp:40,h:3}, cake:{hp:60,h:4} };
-const FOOD_KEYS = Object.keys(FOODS), MAT_KEYS = ["wood","stone","iron","soil","wool","water"];
+  senbei:{hp:25,h:2}, choco:{hp:30,h:2}, arare:{hp:25,h:2}, matcha:{hp:30,h:1}, pudding:{hp:35,h:2}, grape:{hp:25,h:2}, suika:{hp:35,h:2}, kakigori:{hp:30,h:1}, dango:{hp:35,h:2}, candy:{hp:30,h:2}, cupcake:{hp:40,h:3}, imo:{hp:40,h:3}, cake:{hp:60,h:4},
+  carrot:{hp:20,h:1}, tomato:{hp:22,h:1}, corn:{hp:30,h:2} };
+const FOOD_KEYS = Object.keys(FOODS), MAT_KEYS = ["wood","stone","iron","soil","wool","water","seed"];
+const STORE_KEYS = ["shop","super"];
+const CROPS = ["carrot","tomato","corn"], GROW = .4;   // はたけ：たねを うえて 0.4日（やく 1ぷん）で とれる
 const TREASURE = { silverbar:60, goldbar:150, star:120, ring:200, crystal:250, trophy:300, diamond:500, crown:800, lumi:2000 };   // うると もらえる コイン
 const HOUSE_KEYS = ["hut","ftent","fhouse","house","stonehouse","mansion"];
 const FURN_KEYS = ["fchair","ftable","fbed","fsofa","fshelf","fplant","flamp","fflower","fclock","fbear","fpiano","fpic","fbox","fjack","ftree"];
@@ -327,6 +364,10 @@ const BUILDS = {
   house:     { kind:"house", kit:true, name:"ちいさな家",      icon:"🏠", cost:{wood:24, stone:8},                 rank:2, dist:8,  clear:5,   desc:"まどと やねの ある 家" },
   stonehouse:{ kind:"house", kit:true, name:"石の家",          icon:"🏘️", cost:{stone:30, wood:8},                 rank:3, dist:8.5,clear:5.5, desc:"がんじょうな 石の 家。えんとつつき" },
   mansion:   { kind:"house", kit:true, name:"ごうかな おやしき", icon:"🏰", cost:{wood:40, stone:30, iron:12, wool:6}, rank:5, dist:12, clear:8, desc:"2かいだての 金ピカ おやしき。はしら・じゅうたん・花だんつき" },
+  shop:      { kind:"store", kit:true, name:"おみせ",   icon:"🏪", cost:{wood:20, stone:6},          rank:2, dist:9,  clear:5,   desc:"まちの おみせ。ちかくで 1を おすと かいものが できる（いえ・かぐ・たからものを うる）" },
+  super:     { kind:"store", kit:true, name:"スーパー", icon:"🛍️", cost:{wood:24, stone:20, iron:6}, rank:3, dist:11, clear:7,   desc:"なんでも うってる 大きな おみせ。たね・たべもの・ざいりょうを かえて、やさいも うれる" },
+  farm:      { kind:"farm", name:"はたけ", icon:"🌾", cost:{soil:2, wood:1}, fixed:true, dist:4, clear:2, desc:"🌱たねを うえると 1ぷんくらいで やさいが とれる（たねは スーパーで かえる）" },
+  fountain:  { kind:"deco", name:"ふんすい", icon:"⛲", cost:{stone:10}, fixed:true, dist:6, clear:3, desc:"まちの ひろばの ふんすい" },
   floor: { kind:"part", name:"ゆか",       icon:"🟫", cost:{wood:3} },
   wall:  { kind:"part", name:"木のかべ",   icon:"🪵", cost:{wood:4} },
   swall: { kind:"part", name:"石のかべ",   icon:"🧱", cost:{stone:4} },
@@ -409,6 +450,7 @@ const SHOP = [
   { k:"hut", price:300 }, { k:"house", price:800 }, { k:"stonehouse", price:1500 }, { k:"mansion", price:5000 },
   { k:"fchair", price:60 }, { k:"ftable", price:90 }, { k:"fbed", price:150 }, { k:"fsofa", price:200 },
   { k:"fshelf", price:120 }, { k:"fplant", price:40 }, { k:"flamp", price:70 }, { k:"fflower", price:80 },
+  { k:"shop", price:1000 }, { k:"super", price:2500 },
   { k:"fclock", price:160 }, { k:"fbear", price:110 }, { k:"fpiano", price:600 }, { k:"fpic", price:130 },
 ];
 // ====== たからばこ（チケットで あける。ミッション 1こ たっせいで チケット 1まい・じどうで もらえる） ======
@@ -488,7 +530,7 @@ const MISSIONS = [
 ];
 // ====== バランス（じょうきょうに あわせて しぜんに かわる） ======
 // コインが すくない ほど 多く もらえ、たくさん もっている ほど 少なくなる
-const coinRate = () => clamp(1.6 - meta.coins/2500, .6, 1.6);
+const coinRate = () => clamp(1.6 - meta.coins/2500, .6, 1.6) * (1 + (meta.wlv||0) * .1);
 // ざいりょうが すくない ほど 多く とれる（もちすぎは とれる数が へる）
 const scarce = k => { const n = S.inv[k]||0; return n < 10 ? 2 : n < 40 ? 1 : 0; };
 
@@ -855,6 +897,40 @@ function makeBuild(type) {
     const st = new THREE.Mesh(new THREE.OctahedronGeometry(.2), BM.gold); st.position.y = 3; g.add(st);
     const cols = [BM.pink, BM.gold, BM.blue, Lam(0xe0302a)]; for (let i=0;i<14;i++) { const a = i*2.4, y = .8 + (i%7)*.25, rr = 1 - (y-.6)*.38; const o = new THREE.Mesh(new THREE.SphereGeometry(.08,8,6), cols[i%4]); o.position.set(Math.cos(a)*rr, y, Math.sin(a)*rr); g.add(o); }
     const L = new THREE.PointLight(0xffe0a0, 4, 7, 1.6); L.position.y = 2; g.add(L); }
+  const sign = (text, color, w, y) => { const lb = labelSprite(text, color); lb.scale.set(w, w/4, 1); lb.position.set(0, y, 0); g.add(lb); };
+  if (type === "shop") {
+    shell(g, 6, 6, 3, BM.white, BM.wood);
+    g.add(box(6.4,.3,6.4,BM.roof,0,3.45,0,false));                                   // ひらたい やね
+    for (let i=0;i<6;i++) { const a = box(1.07,.12,1.6,i%2 ? BM.white : Lam(0xe0302a),-2.68+i*1.07,3.05,3.75,false); a.rotation.x = .35; g.add(a); }   // しましまの ひさし
+    g.add(box(3.4,.9,.15,BM.dark,0,4.05,3.1,false));                                  // かんばん
+    win(g, -2.1, 1.6, 3, true); win(g, 2.1, 1.6, 3, true);
+    g.add(box(2.6,1,.8,BM.wood,0,.8,-1.6));                                           // カウンター
+    for (const [x,m] of [[-.8,BM.pink],[0,BM.gold],[.8,BM.blue]]) g.add(box(.4,.4,.4,m,x,1.5,-1.6,false));
+    sign("🏪 おみせ", "#ffe38a", 3.2, 4.9);
+  }
+  if (type === "super") {
+    const w = 10, d = 8, h = 3.6, glass = new THREE.MeshLambertMaterial({ color:0x9fd8ff, transparent:true, opacity:.55 });
+    shell(g, w, d, h, BM.white, BM.stone);
+    g.add(box(w+.3,.35,d+.3,BM.metal2,0,.3+h+.15,0,false));                            // やね
+    g.add(box(w+.14,.5,d+.14,Lam(0x2e86de),0,.3+h-.35,0,false));                     // あおい ライン
+    for (const s of [-1,1]) g.add(box(3,2,.38,glass,s*3.2,1.4,d/2-.15,false));       // ガラスの まど
+    g.add(box(6,1.2,.2,Lam(0xe0302a),0,h+1.1,d/2-.1,false));                          // かんばん
+    for (let i=0;i<3;i++) { g.add(box(.6,1.6,4,BM.wood,-3+i*3,1.1,-1)); for (let j=0;j<4;j++) g.add(box(.62,.25,.6,[BM.pink,BM.gold,BM.green,BM.blue][(i+j)%4],-3+i*3,.7+(j%2)*.6,-2.5+j,false)); }
+    g.add(box(1.6,.9,.8,BM.dark,3.3,.75,2.2));                                        // レジ
+    sign("🛍️ スーパー", "#ffffff", 4.4, h+2.3);
+  }
+  if (type === "farm") {
+    g.add(box(3.2,.22,3.2,Lam(0x6b4a2b),0,.11,0,false));
+    for (const x of [-1,0,1]) g.add(box(.6,.14,3,Lam(0x4f351d),x,.28,0,false));
+    for (const [x,z] of [[-1.6,-1.6],[1.6,-1.6],[-1.6,1.6],[1.6,1.6]]) g.add(box(.12,.7,.12,BM.dark,x,.35,z,false));
+  }
+  if (type === "fountain") {
+    g.add(cyl(2.3,.6,BM.stone,0,.3,0));
+    const wt = new THREE.Mesh(new THREE.CylinderGeometry(2,2,.1,24), new THREE.MeshLambertMaterial({ color:0x5fb8ff, emissive:0x174a80 })); wt.position.y = .58; g.add(wt);
+    g.add(cyl(.3,1.8,BM.stone,0,1.1,0,false), cyl(.9,.2,BM.stone,0,2,0,false));
+    for (let i=0;i<8;i++) { const a = i/8*6.283, dr = new THREE.Mesh(new THREE.SphereGeometry(.12,8,6), new THREE.MeshBasicMaterial({ color:0xbfe6ff }));
+      dr.position.set(Math.cos(a)*1.1, 1.6, Math.sin(a)*1.1); dr.userData.drop = a; g.add(dr); }
+  }
   return g;
 }
 let colliders = [];
@@ -864,6 +940,8 @@ function placeBuild(b) {
   g.traverse(ch => { if (ch.userData.solid) { const bb = new THREE.Box3().setFromObject(ch); b.cols.push({ minX:bb.min.x, maxX:bb.max.x, minZ:bb.min.z, maxZ:bb.max.z, minY:bb.min.y, maxY:bb.max.y }); } });
   rebuildColliders();
   if (b.mine && BUILDS[b.type]?.kind === "house") addHouseMarker(b);
+  if (b.label) { const lb = labelSprite(b.label, "#ffe38a"); lb.scale.set(4, 1, 1); lb.position.y = 3.6; g.add(lb); }
+  b.cropStage = null;
 }
 // じぶんの 家の うえに うかぶ めじるし（とおくからでも 見える）
 function markerSprite() {
@@ -1257,7 +1335,7 @@ function toast(t) { const d = document.createElement("div"); d.className = "toas
 function gain(k, n, pre="") { S.inv[k] = (S.inv[k]||0) + n; cnt(k, n); toast(`${pre}${ITEMS[k][0]} ${ITEMS[k][1]} +${n}`); }
 
 // ====== ミッション・おみせ・村の人 ======
-function cnt(k, n=1) { if (S) S.st[k] = (S.st[k]||0) + n; }
+function cnt(k, n=1) { if (S) { S.st[k] = (S.st[k]||0) + n; addXP(1); } }
 const missionVal = m => m.key === "day" ? S.day : m.key === "age" ? S.age : m.key === "pets" ? S.pets.length : m.key === "pulls" ? (meta.pulls||0) : (S.st[m.key]||0);
 function openMissions() {
   if (!running) return;
@@ -1286,7 +1364,8 @@ function openShop() {
       <button data-buy="${s.k}" ${ok ? "" : "disabled"}>🪙${s.price}</button></div>`; };
   openMenu(`<h2>🛒 おみせ</h2><p class="stat">🪙 コイン：<b>${meta.coins}</b></p>
     <p class="note" style="margin-top:0">かった ものは 6（たてる）で つかえるよ。コインは ミッションや かげまる たおし、木や石で たまるよ</p>
-    <h3>🏠 いえ（まるごと かう）</h3>${SHOP.filter(s => BUILDS[s.k].kit).map(row).join("")}
+    <h3>🏠 いえ（まるごと かう）</h3>${SHOP.filter(s => BUILDS[s.k].kind === "house").map(row).join("")}
+    <h3>🏙️ まちの たてもの（じぶんで たてられる）</h3>${SHOP.filter(s => BUILDS[s.k].kind === "store").map(row).join("")}
     <h3>🪑 かぐ（おいて かざれる）</h3>${SHOP.filter(s => BUILDS[s.k].furn).map(row).join("")}
     <h3>💰 たからものを うる</h3>${Object.entries(TREASURE).filter(([k]) => S.inv[k] > 0).map(([k,pr]) => `<div class="row"><span class="ic">${ITEMS[k][0]}</span><div class="grow"><b>${ITEMS[k][1]}</b><div class="cost">もってる：${S.inv[k]}こ</div></div><button data-sell="${k}">うる 🪙${pr}</button></div>`).join("") || '<p class="note">たからものは 🧰 たからばこから でるよ</p>'}
     <p style="text-align:center;margin-top:14px"><button data-close>とじる<kbd>0</kbd></button></p>`, "shop");
@@ -1300,6 +1379,62 @@ function buy(k) {
   addCoins(-s.price); S.inv[k] = (S.inv[k]||0) + 1; cnt("bought"); save();
   toast(`${ITEMS[k][0]} ${ITEMS[k][1]} を かった！ 🎒もちものに はいったよ。もちもの（4）から いつでも たてられる`);
   openShop();
+}
+// ====== スーパー（たね・たべもの・ざいりょうを かう／やさいを うる） ======
+const SUPER = [
+  { k:"seed", n:3, price:30 }, { k:"gohan", n:1, price:40 }, { k:"omelet", n:1, price:70 }, { k:"pancake", n:1, price:70 }, { k:"cake", n:1, price:120 },
+  { k:"apple", n:2, price:25 }, { k:"milk", n:1, price:20 }, { k:"egg", n:2, price:20 },
+  { k:"wood", n:10, price:40 }, { k:"stone", n:10, price:40 }, { k:"iron", n:3, price:60 }, { k:"wool", n:2, price:50 }, { k:"soil", n:5, price:20 },
+];
+const SELL_CROP = { carrot:12, tomato:15, corn:20 };
+function openSuper() {
+  if (!running) return;
+  const row = s => { const it = ITEMS[s.k], ok = meta.coins >= s.price;
+    return `<div class="row${ok ? "" : " lock"}"><span class="ic">${it[0]}</span><div class="grow"><b>${it[1]} ×${s.n}</b><div class="cost">もってる：${S.inv[s.k]||0}こ</div></div>
+      <button data-sb="${s.k}" ${ok ? "" : "disabled"}>🪙${s.price}</button></div>`; };
+  openMenu(`<h2>🛍️ スーパー</h2><p class="stat">🪙 コイン：<b>${meta.coins}</b></p>
+    <h3>🌱 はたけ</h3>${SUPER.filter(s => s.k === "seed").map(row).join("")}
+    <h3>🍱 たべもの</h3>${SUPER.filter(s => FOODS[s.k]).map(row).join("")}
+    <h3>🧱 ざいりょう</h3>${SUPER.filter(s => s.k !== "seed" && !FOODS[s.k]).map(row).join("")}
+    <h3>🥕 やさいを うる</h3>${CROPS.filter(k => S.inv[k] > 0).map(k => `<div class="row"><span class="ic">${ITEMS[k][0]}</span><div class="grow"><b>${ITEMS[k][1]}</b><div class="cost">もってる：${S.inv[k]}こ</div></div><button data-sc="${k}">うる 🪙${SELL_CROP[k]}</button></div>`).join("") || '<p class="note">はたけで とれた やさいを うれるよ</p>'}
+    <p style="text-align:center;margin-top:14px"><button data-close>とじる</button></p>`, "super");
+  screen.querySelectorAll("[data-sb]").forEach(b => b.onclick = () => { const s = SUPER.find(x => x.k === b.dataset.sb); if (meta.coins < s.price) return;
+    addCoins(-s.price); S.inv[s.k] = (S.inv[s.k]||0) + s.n; cnt("bought"); toast(`${ITEMS[s.k][0]} ${ITEMS[s.k][1]} ×${s.n} を かった！`); save(); openSuper(); });
+  screen.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { const k = b.dataset.sc; if (!(S.inv[k] > 0)) return; S.inv[k]--; addCoins(SELL_CROP[k]); cnt("sold"); toast(`${ITEMS[k][0]} を うった！ 🪙+${SELL_CROP[k]}`); save(); openSuper(); });
+  screen.querySelector("[data-close]").onclick = closeMenu;
+}
+// ====== はたけ ======
+const nowDay = () => S.day + S.dayTime;
+const cropGrow = b => b.crop ? clamp((nowDay() - b.crop.t) / GROW, 0, 1) : 0;
+function farmHint(b) { if (!b.crop) return (S.inv.seed > 0 ? "1：🌱 たねを うえる" : "🌱 たねが ないよ（🛍️ スーパーで かえる）");
+  const g = cropGrow(b); return g >= 1 ? `1：${ITEMS[b.crop.k][0]} ${ITEMS[b.crop.k][1]} を しゅうかく！` : `🌱 そだっているよ… ${Math.floor(g*100)}%`; }
+function farmAct(b) {
+  P.face = Math.atan2(b.x-P.x, b.z-P.z);
+  if (!b.crop) {
+    if (!(S.inv.seed > 0)) return toast("🌱 たねが ないよ。🛍️ スーパーで かえるよ");
+    S.inv.seed--; b.crop = { k: CROPS[(Math.random()*CROPS.length) | 0], t: nowDay() }; cnt("plant");
+    bits(b.x, groundAt(b.x,b.z)+.5, b.z, 0x5a3a1a, 10); toast("🌱 たねを うえた！ 1ぷんくらいで そだつよ"); return;
+  }
+  if (cropGrow(b) < 1) return toast(farmHint(b));
+  const k = b.crop.k, n = 2 + (Math.random() < .4 ? 1 : 0) + Math.floor((meta.wlv||0) / 3); b.crop = null;
+  bits(b.x, groundAt(b.x,b.z)+.8, b.z, 0x7bd36b, 14); gain(k, n, "🌾 "); cnt("harvest");
+  if (Math.random() < .7) gain("seed", 1 + (Math.random() < .3 ? 1 : 0), "🌾 ");
+  addCoins(Math.round(3 * coinRate()));
+}
+let farmT = 0;
+function updateFarms(dt) {
+  farmT -= dt; if (farmT > 0) return; farmT = .5;
+  for (const b of S.builds) {
+    if (b.type === "fountain" && b.group) b.group.traverse(m => { if (m.userData.drop !== undefined) { const t = performance.now()/600 + m.userData.drop; m.position.y = .7 + Math.abs(Math.sin(t)) * 1.2; } });
+    if (b.type !== "farm" || !b.group) continue;
+    const g = cropGrow(b), st = !b.crop ? "" : g >= 1 ? b.crop.k : g >= .5 ? "🌿" : "🌱";
+    if (st === b.cropStage) continue; const prev = b.cropStage;
+    if (b.cropSpr) { for (const sp of b.cropSpr) b.group.remove(sp); b.cropSpr = null; }
+    b.cropStage = st; if (!st) continue;
+    const ch = ITEMS[st] ? ITEMS[st][0] : st, sz = g >= 1 ? .8 : g >= .5 ? .65 : .45;
+    b.cropSpr = [-1,0,1].flatMap(x => [-.9,.9].map(z => { const sp = emojiSprite(ch, sz); sp.position.set(x, .3 + sz/2, z); b.group.add(sp); return sp; }));
+    if (g >= 1 && prev) toast(`🌾 はたけの ${ITEMS[b.crop.k][0]} が とれるよ！`);
+  }
 }
 // 村の人：家の まえに すんでいて、ときどき まちを あるく。1日に 1かい おれいを くれる
 let vils = [];
@@ -1428,11 +1563,11 @@ function autoMissions() {
   if (!S || !running) return;
   let got = 0;
   for (const m of MISSIONS) if (!S.mDone[m.id] && missionVal(m) >= m.n) {
-    S.mDone[m.id] = true; addCoins(m.c); claimed(); got++;
+    S.mDone[m.id] = true; addCoins(m.c); claimed(); got++; addXP(30);
     toast(`📋 ミッション たっせい！「${m.t}」<br>🪙+${m.c} 🎟️チケット +1`); }
   checkEvent(true); const E = curEvent();
   for (const m of evMissions(E)) if (!S.ev.done[m.id] && evVal(m) >= m.n) {
-    S.ev.done[m.id] = true; addCoins(m.c); for (const [k,n] of Object.entries(m.give)) S.inv[k] = (S.inv[k]||0) + n; claimed(); got++;
+    S.ev.done[m.id] = true; addXP(30); addCoins(m.c); for (const [k,n] of Object.entries(m.give)) S.inv[k] = (S.inv[k]||0) + n; claimed(); got++;
     toast(`${E.icon} イベント たっせい！「${m.t}」<br>🪙+${m.c} ${giveText(m.give)} 🎟️チケット +1`); }
   if (got) { save(); if (menuKind === "missions") openMissions(); }
 }
@@ -1512,13 +1647,14 @@ const MENU_KEY = { 4:"bag", 5:"craft", 6:"build" };
 addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT") return;
   keys[e.code] = true;
-  if (!running) return;
+  if (!running) { if (e.code === "Escape" && menuKind === "title") { const bf = document.querySelector("#backfix"); if (bf) bf.click(); } return; }
   if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault();
   if (e.code === "Escape") { if (menuOpen) { if (menuKind !== "dead") closeMenu(); } else if (buildMode) setBuild(null); else openPause(); return; }
   const m = e.code.match(/^(?:Digit|Numpad)([1-9])$/), n = m ? +m[1] : 0;
-  if (menuOpen) { if (n && MENU_KEY[n] === menuKind) closeMenu(); if ((e.code === "KeyT" && menuKind === "chest") || (e.code === "KeyM" && menuKind === "missions") || ((e.code === "Digit0" || e.code === "Numpad0") && menuKind === "shop")) closeMenu(); return; }
+  if (menuOpen) { if (n && MENU_KEY[n] === menuKind) closeMenu(); if ((e.code === "KeyT" && menuKind === "chest") || (e.code === "KeyM" && menuKind === "missions") || ((e.code === "Digit0" || e.code === "Numpad0") && menuKind === "shop") || (e.code === "KeyH" && menuKind === "help")) closeMenu(); return; }
   if (e.code === "Digit0" || e.code === "Numpad0") { if (!e.repeat) openShop(); return; }
   if (e.code === "KeyM") { if (!e.repeat) openMissions(); return; }
+  if (e.code === "KeyH") { if (!e.repeat) openHelp(); return; }
   if (e.code === "KeyV") { if (!e.repeat) toggleView(); return; }
   if (e.code === "KeyT") { if (!e.repeat) openChests(); return; }
   if (e.code === "KeyE") { if (!e.repeat) toggleDoor(); return; }
@@ -1561,6 +1697,7 @@ $("#bMission").onclick = () => !menuOpen && openMissions();
 $("#bChest").onclick = () => !menuOpen && openChests();
 $("#bView").onclick = () => !menuOpen && toggleView();
 $("#bMenu").onclick = () => !menuOpen && openPause();
+$("#bHelp").onclick = () => !menuOpen && openHelp();
 
 // ====== アクション ======
 let target = null, buildMode = null, buildRot = 0, ghost = null, ghostType = null;
@@ -1577,6 +1714,9 @@ function findTarget() {
   nearObjs(P.x, P.z, o => { const d = Math.hypot(o.x-P.x, o.z-P.z) - o.r; if (d < 1.4 && d < bd) { bd = d; best = { type:"obj", o }; } });
   if (best) return best;
   if (S.tools.bucket) { for (const a of animals) if (a.kind === "cow" && Math.hypot(a.x-P.x, a.z-P.z) < 2.8) return { type:"milk", a }; }
+  { let sb = null, sd = 1e9; for (const b of S.builds) { const B = BUILDS[b.type]; if (!B) continue; const d = Math.hypot(b.x-P.x, b.z-P.z);
+      const r = B.kind === "store" ? (b.type === "super" ? 7.5 : 5.5) : B.kind === "farm" ? 2.6 : 0; if (r && d < r && d < sd) { sd = d; sb = b; } }
+    if (sb) return { type: BUILDS[sb.type].kind, b: sb }; }
   for (const b of S.builds) if ((b.type === "fbed" || b.type === "ftent") && Math.hypot(b.x-P.x, b.z-P.z) < (b.type === "ftent" ? 3 : 2.2)) return { type:"bed", b };
   if (S.tools.bucket && nearWater()) return { type:"water" };
   return null;
@@ -1601,6 +1741,8 @@ function act() {
   if (t.type === "bed") return goSleep();
   if (t.type === "milk") return milkCow(t.a);
   if (t.type === "water") return scoopWater();
+  if (t.type === "store") return t.b.type === "super" ? openSuper() : openShop();
+  if (t.type === "farm") return farmAct(t.b);
   const o = t.o;
   if (o.kind === "ore" && !S.tools.pick) return toast("⛏️ つるはしが ないと てつは ほれないよ（クラフトで つくろう）");
   let power = 1;
@@ -1621,7 +1763,7 @@ function hitObj(o, power, byFriend) {
   if (o.hp > 0) return false;
   o.gone = true; placeObj(o); S.removed.push(o.id); bits(o.x, y+1.5, o.z, color, 14); addCoins(Math.round(2*coinRate()));
   const pre = byFriend ? `🤝 ${esc(S.friendName)}：` : "";
-  const bonus = k => byFriend ? 0 : (S.job === k ? (k === "koufu" && o.kind === "ore" ? 1 : 2) : 0);
+  const bonus = k => Math.floor((meta.wlv||0) / 2) + (byFriend ? 0 : (S.job === k ? (k === "koufu" && o.kind === "ore" ? 1 : 2) : 0));
   if (o.kind === "tree" || o.kind === "pine") gain("wood", 3 + bonus("kikori") + scarce("wood"), pre);
   if (o.kind === "tree" && Math.random() < .3) gain("apple", 1 + (Math.random() < .3 ? 1 : 0), pre);
   if (o.kind === "mush") gain("mush", 1 + (Math.random() < .4 ? 1 : 0), pre);
@@ -1661,7 +1803,7 @@ function rotateBuild() { if (buildMode) buildRot = (buildRot+1) % 4; }
 function buildSpot() { const [fx,fz] = camForward(), d = BUILDS[buildMode].dist || 4.5;
   let x = P.x + fx*d, z = P.z + fz*d; if (buildMode !== "raise") { x = Math.round(x/2)*2; z = Math.round(z/2)*2; } return [x,z]; }
 function nearestBuild(x, z, filter) { let best = null, bd = 8; for (const b of S.builds) { if (filter && !filter(b)) continue; const d = Math.hypot(b.x-x, b.z-z); if (d < bd) { bd = d; best = b; } } return best; }
-const isFold = b => BUILDS[b.type]?.kind === "house" || BUILDS[b.type]?.furn;
+const isFold = b => ["house","store"].includes(BUILDS[b.type]?.kind) || BUILDS[b.type]?.furn;
 function placeCurrent() {
   const [x,z] = buildSpot(); P.actCd = .3;
   if (buildMode === "remove" || buildMode === "fold") {
@@ -1684,6 +1826,8 @@ function placeCurrent() {
   const clr = BUILDS[buildMode].clear || 2.5;
   nearObjs(x, z, o => { if (Math.hypot(o.x-x, o.z-z) < clr) { o.gone = true; placeObj(o); S.removed.push(o.id); } }, 2);
   bits(x, groundAt(x,z)+1, z, 0xffffff, 10);
+  if (BUILDS[buildMode].kind === "store") { cnt("built"); toast(`${BUILDS[buildMode].icon} ${BUILDS[buildMode].name} が できた！ ちかくで 1 を おすと かいもの できるよ`); }
+  if (buildMode === "farm") toast("🌾 はたけが できた！ ちかくで 1 を おすと 🌱たねを うえられるよ");
   if (BUILDS[buildMode].kind === "house") toast(`${BUILDS[buildMode].icon} ${BUILDS[buildMode].name} が できた！ 🏠マークで どこでも わかるよ${INTERIOR[buildMode] ? "<br>なかには 🛏️ベッドが ある。E で はいって ねよう" : ""}`);
   if (!canPay(costOf(buildMode))) { if (BUILDS[buildMode].kind !== "house") toast(`${BUILDS[buildMode].name} の ざいりょうが なくなった`); setBuild(null); }
 }
@@ -1700,8 +1844,8 @@ function openBag() {
     <small>${FOODS[k].full ? "おなか いっぱい" : `おなか ${FOODS[k].h}日ぶん`}・HP+${FOODS[k].hp}</small><button data-eat="${k}">たべる</button></div>`).join("");
   const tools = Object.keys(S.tools).filter(id => RECIPES.some(x => x.id === id)).map(id => { const r = RECIPES.find(x => x.id === id); return `<div class="it"><span class="ic">${r.icon}</span><b>${r.name}</b><small>${r.desc}</small></div>`; }).join("");
   const others = OTHER_KEYS.filter(k => S.inv[k] > 0).map(cell).join("");
-  const place = k => `<div class="it"><span class="ic">${ITEMS[k][0]}</span><b>${ITEMS[k][1]}</b><span class="n">${S.inv[k]}</span><button data-place="${k}">${BUILDS[k].kind === "house" ? "たてる" : "おく"}</button></div>`;
-  const houses = HOUSE_KEYS.filter(k => S.inv[k] > 0).map(place).join(""), furns = FURN_KEYS.filter(k => S.inv[k] > 0).map(place).join("");
+  const place = k => `<div class="it"><span class="ic">${ITEMS[k][0]}</span><b>${ITEMS[k][1]}</b><span class="n">${S.inv[k]}</span><button data-place="${k}">${BUILDS[k].kind === "house" || BUILDS[k].kind === "store" ? "たてる" : "おく"}</button></div>`;
+  const houses = [...HOUSE_KEYS, ...STORE_KEYS].filter(k => S.inv[k] > 0).map(place).join(""), furns = FURN_KEYS.filter(k => S.inv[k] > 0).map(place).join("");
   const treas = Object.keys(TREASURE).filter(k => S.inv[k] > 0).map(cell).join("");
   const pets = S.pets.map(p => { const A = ANIMALS[p.kind]; return `<div class="it"><span class="ic">${A.icon}</span><b>${A.name}</b><small>${A.desc}</small></div>`; }).join("");
   const left = Math.max(0, STARVE_DAYS - S.hunger);
@@ -1752,6 +1896,8 @@ function openBuild() {
     <h3>✅ いまの もちもので たてられる家（${can.length}しゅるい）</h3>${can.map(houseRow).join("") || '<p class="note">まだ ないよ</p>'}
     <h3>🔒 ざいりょうが たりない家</h3>${cant.map(houseRow).join("") || '<p class="note">ぜんぶ たてられる！</p>'}
     <p class="note">💡 🧶けいと は 🐑ひつじ を なかまに すると まいにち もらえる。🔩てつ は つるはしで ほれる</p>
+    <h3>🏙️ まちづくり（おみせ・スーパー・はたけ）</h3>${[...keysOf("store"), ...keysOf("farm"), ...keysOf("deco")].map(row).join("")}
+    <p class="note">💡 おみせ・スーパーは 🛒おみせで まるごと かうことも できるよ。ちかくで 1 を おすと かいもの できる</p>
     <h3>🧱 パーツで じぶんで つくる</h3>${keysOf("part").map(row).join("")}
     <h3>🪑 かぐ（🛒 おみせで かってね）</h3>${keysOf("furn").map(row).join("")}
     <h3>🛠️ そのほか</h3>${keysOf("misc").map(row).join("")}
@@ -1789,14 +1935,14 @@ function renderInfo() {
   $("#slt").textContent = `あと${Math.ceil(sl)}日`;
   const E = curEvent(); $("#evline").textContent = `${E.icon} ${E.name}　🎟️${S.tickets||0}`;
   $("#fr").textContent = `🤝 ${S.friendName}：${S.friendAuto ? "じどう" : "てうごき"}　🐾 なかま ${S.pets.length}`;
-  $("#coinv").textContent = `🪙 ${meta.coins}`;
+  $("#coinv").textContent = `🪙 ${meta.coins}　🌈Lv ${lvOf(lvData.xp).toLocaleString()}${meta.wlv ? `　🌍W${meta.wlv}` : ""}`;
 }
 
 // ====== セーブ ======
 function save() {
   if (!S) return;
   S.p = inside ? { x:outsideSpot.x, y:outsideSpot.y, z:outsideSpot.z } : { x:P.x, y:P.y, z:P.z };
-  const data = { ...S, builds: S.builds.map(({ type,x,z,rot,mine }) => ({ type,x,z,rot,mine })), drops: drops.map(({ k,n,x,z }) => ({ k,n,x,z })) };
+  const data = { ...S, builds: S.builds.map(({ type,x,z,rot,mine,crop,label }) => ({ type,x,z,rot,mine,crop,label })), drops: drops.map(({ k,n,x,z }) => ({ k,n,x,z })) };
   if (!store.set(slotKey(S.slot), data)) toast("⚠️ セーブできなかった");
 }
 setInterval(() => { if (running) save(); }, 20000);
@@ -1942,7 +2088,7 @@ function pushOut(x, z, r, y, h, stand) {
 function newDay() {
   S.dayTime -= 1; S.day++; S.age++; S.hp = Math.min(maxHP(), S.hp + 4);
   toast(`🎂 おたんじょうび！ ${esc(S.name)} は ${S.age}さいに なった！`); if (S.age <= 18) toast("からだが すこし 大きくなった");
-  toast(`📅 ${dateText(S.day)}`); if (S.parent.stock < 3) { S.parent.stock++; toast("👩 おかあさんが ごはんを つくったよ。おうちで もらおう"); }
+  toast(`📅 ${dateText(S.day)}`); addXP(20); if (S.parent.stock < 3) { S.parent.stock++; toast("👩 おかあさんが ごはんを つくったよ。おうちで もらおう"); }
   const got = {};
   for (const p of S.pets) { const A = ANIMALS[p.kind]; if (!A?.give || (A.bucket && !S.tools.bucket)) continue; got[A.give[0]] = (got[A.give[0]]||0) + A.give[1]; }
   for (const [k,n] of Object.entries(got)) gain(k, n, "🐾 ");
@@ -2059,6 +2205,7 @@ function update(dt) {
     let h = !target ? "" : target.type === "enemy" ? "1：⚔️ かげまる を こうげき！"
       : target.type === "villager" ? `1：${esc(target.v.d.name)} と はなす` : target.type === "parent" ? `1：👩 おかあさん と はなす${S.parent.stock ? "（🍱 ごはん できてる！）" : ""}`
       : target.type === "bed" ? "1：🛏️ ねる（ねむけが なくなる）" : target.type === "milk" ? "1：🥛 うしの ミルクを しぼる（🪣）" : target.type === "water" ? "1：💧 バケツで みずを くむ"
+      : target.type === "store" ? (target.b.type === "super" ? "1：🛍️ スーパーで かいもの" : "1：🏪 おみせで かいもの") : target.type === "farm" ? farmHint(target.b)
       : `1：${OBJ_INFO[target.o.kind].name} を ${OBJ_INFO[target.o.kind].verb}`;
     if (an) h += (h ? "　" : "") + `7：${ANIMALS[an.kind].icon} ${ANIMALS[an.kind].name} を てなずける（🍓）`;
     const hb = nearestBuild(P.x, P.z, b => INTERIOR[b.type]);
@@ -2067,6 +2214,7 @@ function update(dt) {
     $("#hint").innerHTML = h;
   }
 
+  updateFarms(dt);
   // たき火の ゆらめき
   for (const b of S.builds) if (b.type === "fire" && b.group) b.group.traverse(m => { if (m.userData.flame) m.scale.set(1, .8 + Math.sin(performance.now()/90 + b.x)*.2, 1); if (m.isLight) m.intensity = night ? 40 : 8; });
   // こなごな
@@ -2095,6 +2243,10 @@ function migrate() {
   S.sleep ??= 0; S.sw ??= Math.floor(S.sleep); S.tickets ??= 0; S.mClaims ??= Object.keys(S.mDone).length; S.drops ??= [];
   if ((S.v||0) < 3) { const vh = new Set(S.villagers.map(v => v.hx + "," + v.hz)); for (const b of S.builds) if (BUILDS[b.type]?.kind === "house" && !vh.has(b.x + "," + b.z)) b.mine = true; }
   S.v = 3;
+  if (!S.townV) {   // まえからの せかいにも まちを つくる
+    initNoise(S.seed); const n = addTown(S.spawn, S.seed).length; S.townV = 1; S.inv.seed = (S.inv.seed||0) + 3;
+    if (n) setTimeout(() => toast("🏙️ うまれた ばしょに まちが できたよ！ 🏪おみせ・🛍️スーパー・🌾はたけ が あるよ"), 3500);
+  }
 }
 function startGame() {
   migrate();
@@ -2129,6 +2281,26 @@ function startGame() {
   closeMenu(); $("#hud").hidden = false; if (isTouch) $("#touch").hidden = false;
   running = true; last = performance.now();
 }
+// うまれた ばしょの まち（おみせ・スーパー・ふんすいの ひろば・はたけ・まちの 家）
+const TOWN = [
+  { type:"fountain", x:0,   z:-16, label:"town" },
+  { type:"shop",     x:-9,  z:-24 }, { type:"super", x:10, z:-25 },
+  { type:"house",    x:-22, z:-20, vil:true }, { type:"house", x:23, z:-20, vil:true },
+  { type:"farm",     x:-17, z:-1, crop:true }, { type:"farm", x:-17, z:3, crop:true }, { type:"farm", x:-17, z:7 },
+];
+function addTown(sp, seed) {
+  const added = [];
+  for (const t of TOWN) {
+    const x = Math.round((sp.x+t.x)/2)*2, z = Math.round((sp.z+t.z)/2)*2;
+    if (baseH(x,z) < .6 || S.builds.some(b => Math.hypot(b.x-x, b.z-z) < (BUILDS[b.type]?.clear || 2) + (BUILDS[t.type].clear || 2))) continue;
+    const b = { type:t.type, x, z, rot:0 };
+    if (t.label) b.label = `🏙️ ${HOMES[S.home].name}の まち`;
+    if (t.crop) b.crop = { k: CROPS[added.length % CROPS.length], t: -1 };   // さいしょから とれる やさい
+    S.builds.push(b); added.push(b);
+    if (t.vil) S.villagers.push({ name:VNAMES[(S.villagers.length + seed % 5) % VNAMES.length], hx:x, hz:z, gift:0 });
+  }
+  return added;
+}
 function createWorld(slot, name, friendName, job, home, enemiesOn) {
   const seed = (Math.random()*1e9) | 0;
   S = { v:2, slot, name, friendName, friendAuto:true, job, home, enemies:enemiesOn, seed, day:1, dayTime:.3, age:5, hp:0, hunger:0, hw:0, pets:[],
@@ -2145,6 +2317,7 @@ function createWorld(slot, name, friendName, job, home, enemiesOn) {
   S.builds.push({ type:"fire", x:fx, z:fz, rot:0 });
   S.parent = { stock:1, x:fx + 2.5, z:fz };
   S.villagers = S.builds.filter(b => b.type === "house").map((b,i) => ({ name:VNAMES[(i + seed % 5) % VNAMES.length], hx:b.x, hz:b.z, gift:0 }));
+  addTown(sp, seed); S.townV = 1; S.inv.seed = 3;
   save(); startGame();
   toast(`${esc(name)} は ${H.name} で うまれた 5さいの ${JOBS[job].name}！ ともだちの ${esc(friendName)} も いっしょ！`);
   setTimeout(() => toast(isTouch ? "左がわを ドラッグで いどう・右がわを ドラッグで まわりを 見る" : "WASD で いどう・そうさは すうじキー 1〜9"), 1500);
@@ -2157,10 +2330,25 @@ const SPARK_COLORS = ["#ff4d6d","#4da3ff","#ffe14a","#ff9a1f","#3ddc5a","#b77bff
 const sparkles = () => Array.from({ length:44 }, (_, i) => `<i class="sparkle" style="left:${Math.random()*100}%;top:${Math.random()*100}%;--c:${SPARK_COLORS[i%6]};--d:${(2+Math.random()*3).toFixed(1)}s;--dl:${(-Math.random()*4).toFixed(1)}s"></i>`).join("");
 const LOGO = [["ル","#ff4d5e","#c3001c",-7], ["ミ","#4aa8ff","#0b45c9",5], ["テ","#ffe44d","#e09a00",-4], ["リ","#ffa62b","#e05200",6], ["ア","#46e06a","#0e9a2e",-5]];
 const coinHTML = cls => `<div class="coins ${cls||""}">${meta.coins}<span class="coin">$</span></div>`;
-function titleScreen(html) { running = false; menuOpen = true; menuKind = "title"; screen.hidden = false; screen.className = "overlay titlebg"; screen.innerHTML = sparkles() + html; }
+const BACKFIX = `<button class="backfix" id="backfix">← タイトルに もどる</button>`;
+function titleScreen(html, back) { running = false; menuOpen = true; menuKind = "title"; screen.hidden = false; screen.className = "overlay titlebg"; screen.innerHTML = sparkles() + html + (back ? BACKFIX : "");
+  if (back) $("#backfix").onclick = showTitle; }
+// ====== そうさの ヘルプ ======
+function helpHTML() {
+  return `<h2>❓ そうさの ヘルプ</h2>
+    <div class="helpsec"><b>🚶 うごく</b><br>${isTouch ? "左がわを ドラッグ：あるく　右がわを ドラッグ：まわりを みる　⬆️：ジャンプ" : "W A S D：あるく　Shift：はしる　スペース：ジャンプ<br>マウスで ドラッグ：まわりを みる　ホイール：ちかく／とおく"}</div>
+    <div class="helpsec"><b>✊ アクション</b><br>${isTouch ? "✊" : "1 ／ クリック"}：木を きる・石を ほる・こうげき・はなす・かいもの・はたけ<br>2：じめんを ほる　3：たべる　7：どうぶつを なかまに する（🍓）　8：たてものを まわす</div>
+    <div class="helpsec"><b>📋 メニュー</b><br>4：🎒 もちもの　5：🔨 クラフト　6：🏠 たてる　9：🤝 ともだち<br>0：🛒 おみせ　M：📋 ミッション　T：🧰 たからばこ　V：👀 してん　H：❓ ヘルプ　Esc：≡ メニュー</div>
+    <div class="helpsec"><b>🏠 いえ</b><br>いえの ちかくで E（🚪）：なかに はいる・でる　ベッドの ちかくで 1：ねる　おかあさんと はなすと ごはんが もらえる</div>
+    <div class="helpsec"><b>🏙️ まち・はたけ</b><br>🏪 おみせ・🛍️ スーパーの ちかくで 1：かいもの<br>🌾 はたけで 1：🌱たねを うえる → 1ぷんくらいで そだつ → もういちど 1 で しゅうかく<br>6（たてる）→「まちづくり」で おみせ・スーパー・はたけを じぶんで たてられる</div>
+    <div class="helpsec"><b>🌈 レベル</b><br>ガチャ・サバイバー・ルミテリアで あそぶと ルミテリア レベルが あがる（さいだい 1おく！）<br>🌍 ワールドレベルは タイトルの ⬆️アップグレード で あげられる</div>
+    ${isTouch ? "" : `<div class="helpsec"><b>🤝 ともだち（てうごきモード）</b><br>やじるしキー：いどう　Enter：アクション　右Shift：ジャンプ</div>`}`;
+}
+function openHelp() { if (buildMode) setBuild(null); openMenu(helpHTML() + `<p style="text-align:center;margin-top:14px"><button data-close>とじる<kbd>H</kbd></button></p>`, "help"); screen.querySelector("[data-close]").onclick = closeMenu; }
+function showHelpTitle() { titleScreen(`<div class="card">${helpHTML()}<p><button id="back">← タイトル</button></p></div>`, true); $("#back").onclick = showTitle; }
 function showTitle() {
   titleScreen(`<div class="titlewrap">
-    ${coinHTML()}
+    ${coinHTML()}${lvHTML()}
     <h1 class="logo">${LOGO.map(([ch,c,c2,r], i) => `<span style="--c:${c};--c2:${c2};--r:${r}deg;--dl:${(-i*.35).toFixed(2)}s">${ch}</span>`).join("")}</h1>
     <p class="subt">（ぼうけんバージョン）</p>
     <div class="tbtns">
@@ -2168,7 +2356,9 @@ function showTitle() {
       <button class="tbtn start" id="tStart">▶ はじめる</button>
       <button class="tbtn up" id="tUp">⬆️ アップ<br>グレード</button>
       <button class="tbtn surv" id="tSurv">⚔️ ルミテリア サバイバー<small>てきを たおして コインを かせごう！</small></button>
+      <button class="tbtn help" id="tHelp">❓ そうさの ヘルプ</button>
     </div></div>`);
+  $("#tHelp").onclick = showHelpTitle;
   $("#tSurv").onclick = () => { location.href = "survivor.html"; };
   $("#tStart").onclick = showSlots;
   $("#tGacha").onclick = () => showGacha(null);
@@ -2188,7 +2378,7 @@ function pullGacha(m) {
   else if (tr < .2) treasure = { icon:"🪙", name:"コインの ふくろ", coins: Math.round((20 + m.cost * .3) * coinRate()) };
   if (treasure) meta.coins += treasure.coins;
   meta.gifts.push({ icon:item.icon, name:item.name, give:item.give, pet:item.pet, tool:item.tool, coins:item.coins });
-  meta.pulls = (meta.pulls || 0) + 1; saveMeta();
+  meta.pulls = (meta.pulls || 0) + 1; saveMeta(); addXP(5 + idx * 5);
   return { tier, item, treasure };
 }
 function showGacha(res) {
@@ -2206,7 +2396,7 @@ function showGacha(res) {
     <h3>でる もの（レア度の 出やすさ）</h3><p class="note" style="line-height:2">${TIERS.map((t,i) => `<span class="rar sm r-${t}">${TIER[t]}</span>${m.w[i]}%`).join("　")}</p>
     <p class="note">🪙 ときどき コインの ふくろ・金銀財宝も でるよ<br>10かい ひいても 伝説いじょうが でない と、つぎは かならず 出るよ（あと ${Math.max(0, 9 - meta.pity)}かい）</p>
     <p class="note">🎁 うけとりまち：${meta.gifts.length ? meta.gifts.map(g => g.icon).join(" ") : "なし"}</p>
-    <p><button id="back">← タイトル</button></p></div>`);
+    <p><button id="back">← タイトル</button></p></div>`, true);
   $("#back").onclick = showTitle;
   screen.querySelectorAll("[data-gs]").forEach(b => b.onclick = () => { gSel = +b.dataset.gs; showGacha(null); });
   $("#pull").onclick = () => {
@@ -2222,8 +2412,16 @@ function showUpgrade() {
     + Object.entries(UPGRADES).map(([k,u]) => { const lv = meta.up[k], max = lv >= UP_COST.length, cost = UP_COST[lv];
       return `<div class="row"><span class="ic">${u.icon}</span><div class="grow"><b>${u.name}</b> <span class="lv">${"★".repeat(lv)}${"☆".repeat(UP_COST.length-lv)}</span><small>${u.desc}</small></div>
         <button data-up="${k}" ${max || meta.coins < cost ? "disabled" : ""}>${max ? "MAX" : `🪙${cost}`}</button></div>`; }).join("")
-    + `<p style="margin-top:14px"><button id="back">← タイトル</button></p></div>`);
+    + (() => { const lv = meta.wlv, max = lv >= WLV_MAX, cost = wlvCost(lv);
+      return `<h3>🌍 ワールドレベル</h3><div class="row"><span class="ic">🌍</span><div class="grow"><b>ワールドレベル ${lv} / ${WLV_MAX}</b>
+        <div class="lvbar"><i style="width:${lv / WLV_MAX * 100}%"></i></div>
+        <small>1つ あがるごとに もらえる コイン +10%。2つごとに 木・石・てつが +1こ、3つごとに はたけの やさいが +1こ</small>
+        <small>いま：コイン +${lv*10}%・ざいりょう +${Math.floor(lv/2)}・やさい +${Math.floor(lv/3)}</small></div>
+        <button data-wlv ${max || meta.coins < cost ? "disabled" : ""}>${max ? "MAX" : `🪙${cost}`}</button></div>`; })()
+    + `<p style="margin-top:14px"><button id="back">← タイトル</button></p></div>`, true);
   $("#back").onclick = showTitle;
+  screen.querySelector("[data-wlv]").onclick = () => { const cost = wlvCost(meta.wlv); if (meta.wlv >= WLV_MAX || meta.coins < cost) return;
+    meta.coins -= cost; meta.wlv++; saveMeta(); addXP(50); showUpgrade(); };
   screen.querySelectorAll("[data-up]").forEach(b => b.onclick = () => { const k = b.dataset.up, cost = UP_COST[meta.up[k]];
     if (meta.coins < cost) return; meta.coins -= cost; meta.up[k]++; saveMeta(); showUpgrade(); });
 }
@@ -2239,8 +2437,8 @@ function showSlots() {
         <button data-play="${i}" class="big" style="font-size:15px;padding:8px 16px">あそぶ</button><button data-del="${i}" title="けす">🗑️</button></div>`
       : `<div class="slot empty"><div style="font-size:32px">✨</div><div class="grow"><b>からっぽ</b><small>せかい ${i+1}</small></div><button data-new="${i}">＋ あたらしい せかい</button></div>`;
   }
-  screen.innerHTML = sparkles() + html + `<p><button id="toTitle">← タイトル</button></p></div>`;
-  $("#toTitle").onclick = showTitle;
+  screen.innerHTML = sparkles() + html + `<p><button id="toTitle">← タイトル</button></p></div>` + BACKFIX;
+  $("#toTitle").onclick = showTitle; $("#backfix").onclick = showTitle;
   screen.querySelectorAll("[data-play]").forEach(b => b.onclick = () => { S = store.get(slotKey(+b.dataset.play)); S.slot = +b.dataset.play; startGame(); toast(`おかえり、${esc(S.name)}！`); });
   screen.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { const d = store.get(slotKey(+b.dataset.del));
     if (confirm(`「${d.name}」の せかいを けしますか？ もとに もどせません。`)) { store.del(slotKey(+b.dataset.del)); showSlots(); } });
@@ -2261,7 +2459,9 @@ function showCreate(slot) {
         <button class="opt${st.enemies ? " sel" : ""}" data-en="1"><span class="ic">👾</span><b>あり</b><small>よるに かげまるが でる。たたかって まもろう</small></button>
         <button class="opt${!st.enemies ? " sel" : ""}" data-en="0"><span class="ic">🕊️</span><b>なし</b><small>てきは でない。のんびり つくって あそべる</small></button></div>
       <p class="note">🎂 5さいから はじまって、1日 すぎるごとに 1さい 大きくなるよ<br>🍱 ${STARVE_DAYS}日間 ごはんを たべないと たおれちゃう。おかあさんが まいにち ごはんを つくってくれるよ</p>
-      <p style="display:flex;gap:8px;justify-content:space-between;margin-top:16px"><button id="cancel">もどる</button><button id="go" class="big">この せかいで はじめる！</button></p></div>`;
+      <p style="display:flex;gap:8px;justify-content:space-between;margin-top:16px"><button id="cancel">もどる</button><button id="go" class="big">この せかいで はじめる！</button></p></div>`
+      + `<button class="backfix" id="backfix">← もどる</button>`;
+    screen.querySelector("#backfix").onclick = showSlots;
     screen.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { st[b.dataset.g] = b.dataset.k; render(); });
     screen.querySelectorAll("[data-en]").forEach(b => b.onclick = () => { st.enemies = b.dataset.en === "1"; render(); });
     screen.querySelector("#cancel").onclick = showSlots;
